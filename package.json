@@ -1,0 +1,32 @@
+{
+  "name": "gaggle",
+  "version": "0.0.0",
+  "description": "A distributed mutual exclusion algorithm",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ben-ng/gaggle.git"
+  },
+  "keywords": [
+    "distributed",
+    "mutal",
+    "exclusion",
+    "mutex",
+    "semaphore",
+    "maekawa",
+    "lamport",
+    "transaction"
+  ],
+  "author": "Ben Ng <me@benng.me>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ben-ng/gaggle/issues"
+  },
+  "homepage": "https://github.com/ben-ng/gaggle#readme"
+}
