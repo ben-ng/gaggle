@@ -1,5 +1,7 @@
 # Gaggle
 
+[![Build Status](https://circleci.com/gh/ben-ng/gaggle/tree/master.svg?style=svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master)
+
 A distributed mutual exclusion algorithm.
 
 # License
