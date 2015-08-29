@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node test"
+    "test": "tape test/*.js"
   },
   "repository": {
     "type": "git",
@@ -28,5 +28,8 @@
   "bugs": {
     "url": "https://github.com/ben-ng/gaggle/issues"
   },
-  "homepage": "https://github.com/ben-ng/gaggle#readme"
+  "homepage": "https://github.com/ben-ng/gaggle#readme",
+  "devDependencies": {
+    "tape": "^4.2.0"
+  }
 }
