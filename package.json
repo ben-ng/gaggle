@@ -7,8 +7,9 @@
     "test": "test"
   },
   "scripts": {
-    "test": "covert test/*.js"
-  , "tdd": "nodemon -x npm test"
+    "test": "covert test/**/*.js",
+    "test-nocov": "tape test/**/*.js",
+    "tdd": "nodemon -x npm test"
   },
   "repository": {
     "type": "git",
