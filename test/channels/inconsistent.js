@@ -5,8 +5,8 @@ var test = require('tape')
 test('channels throw when inconsistent', function (t) {
   t.throws(function () {
     var c = new Channel({id: uuid.v4()})
-    c._recieve('bogus', 'data')
-  }, 'throws when _recieve is called when channel is disconnected')
+    c._recieved('bogus', 'data')
+  }, 'throws when _recieved is called when channel is disconnected')
 
   t.throws(function () {
     var c = new Channel({id: uuid.v4()})
