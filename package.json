@@ -35,7 +35,7 @@
     "tape": "^4.2.0",
     "covert": "^1.1.0",
     "joi": "^6.6.1",
-    "nodemon": "^1.4.1",
+    "nodemon": "^1.4.1"
   },
   "dependencies": {
     "bluebird": "^2.9.34",
