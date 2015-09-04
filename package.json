@@ -37,6 +37,7 @@
   "dependencies": {
     "bluebird": "^2.9.34",
     "covert": "^1.1.0",
+    "joi": "^6.6.1",
     "nodemon": "^1.4.1",
     "uuid": "^2.0.1"
   }
