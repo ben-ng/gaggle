@@ -31,7 +31,7 @@ var RedisGaggle = require('gaggle').Redis
   , db = require('your-hypothetical-database')
 
 g.lock('myMutex', {
-  lockDuration: 1000  // Hold the lock for no longer than 1 second
+  duration: 1000      // Hold the lock for no longer than 1 second
 , maxWait: 5000       // Wait for no longer than 5s to acquire the lock
 })
 .then(lock => {

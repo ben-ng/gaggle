@@ -13,7 +13,7 @@ var Promise = require('bluebird')
 
 Promise.promisifyAll(redis.RedisClient.prototype)
 
-function testStrategy (Strategy, _cb) {
+function testStrategy (createStrategy, _cb) {
   // Test parameters
   var incrementCount = 100
     , gaggleCount = 10
@@ -38,10 +38,6 @@ function testStrategy (Strategy, _cb) {
         if (actual !== expectedFinalValue) {
           var errMsg = 'Increments were not atomic: expected ' + expectedFinalValue + ', got ' + actual
 
-          if (actual > expectedFinalValue) {
-            errMsg += '. Additionally, the actual value was greater than the expected value, which means that the test is faulty.'
-          }
-
           return Promise.reject(new Error(errMsg))
         }
         else {
@@ -65,7 +61,7 @@ function testStrategy (Strategy, _cb) {
     for (i=0; i<gaggleCount; ++i) {
     (function () {
       var incrementCounter = 0
-        , g = new Strategy()
+        , g = createStrategy()
 
       async.whilst(
         function () { return incrementCounter < incrementCount }
@@ -98,7 +94,11 @@ function testStrategy (Strategy, _cb) {
 }
 
 test('atomic increment test fails when mutual exclusion is faulty', function (t) {
-  testStrategy(require('../../strategies/noop-strategy'), function (err) {
+  var Strategy = require('../../strategies/noop-strategy')
+
+  testStrategy(function () {
+    return new Strategy()
+  }, function (err) {
     t.ok(err, 'There should be an error')
 
     if (err != null) {
@@ -111,13 +111,22 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
 })
 
 test('atomic increment - redis', function (t) {
-  testStrategy(require('../../strategies/redis-strategy'), function (err) {
-    if (err == null) {
-      t.pass('there was no error')
-    }
-    else {
-      t.fail(err.toString())
-    }
+  var Strategy = require('../../strategies/redis-strategy')
+    , counter = 0
+    , explicitOptions = {
+        strategyOptions: {
+          redisConnectionString: 'redis://127.0.0.1'
+        }
+      }
+
+  testStrategy(function () {
+    counter = counter + 1
+
+    // Gives us coverage for both default and explicit init
+    return new Strategy(counter % 2 === 0 ? explicitOptions : null)
+  }
+  , function (err) {
+    t.equal(err, undefined, 'unexpected error: ' + err)
 
     t.end()
   })

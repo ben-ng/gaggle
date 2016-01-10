@@ -48,7 +48,7 @@ RedisStrategy.prototype._lock = function _lock (key, opts) {
   var acquired = false
     , started = Date.now()
     , MAX_WAIT = opts.maxWait
-    , LOCK_DURATION = opts.lockDuration
+    , LOCK_DURATION = opts.duration
     , r = this._redis
     , newNonce = this.id + '_' + uuid.v4()
 
@@ -56,11 +56,11 @@ RedisStrategy.prototype._lock = function _lock (key, opts) {
     async.whilst(function () {
       return acquired === false && Date.now() - started < MAX_WAIT
     }, function (next) {
+      /*eslint-disable handle-callback-err*/
       r.set(key, newNonce, 'NX', 'PX', LOCK_DURATION, function (err, res) {
-        if (err) {
-          setTimeout(next, _.random(150, 300))
-        }
-        else if (res === 'OK') {
+        // Ignore errors since we'll be trying again anyway
+        /*eslint-enable handle-callback-err*/
+        if (res === 'OK') {
           acquired = {
             key: key
           , nonce: newNonce
@@ -73,11 +73,8 @@ RedisStrategy.prototype._lock = function _lock (key, opts) {
           setTimeout(next, _.random(150, 300))
         }
       })
-    }, function (err) {
-      if (err) {
-        reject(new Error('Could not acquire lock: ' + err.message))
-      }
-      else if (acquired !== false) {
+    }, function () {
+      if (acquired !== false) {
         resolve(acquired)
       }
       else {

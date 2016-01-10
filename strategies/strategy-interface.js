@@ -37,7 +37,7 @@ function StrategyInterface (opts) {
 
 StrategyInterface.prototype.lock = function lock (key, opts) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
-    lockDuration: Joi.number().min(0).default(10000)
+    duration: Joi.number().min(0).default(10000)
   , maxWait: Joi.number().min(0).default(5000)
   }), {
     convert: false
@@ -58,7 +58,7 @@ StrategyInterface.prototype.lock = function lock (key, opts) {
 }
 
 StrategyInterface.prototype.unlock = function unlock (lock) {
-  var validatedLock = Joi.validate(lock || {}, Joi.object().keys({
+  var validatedLock = Joi.validate(lock, Joi.object().keys({
         key: Joi.string()
       , nonce: Joi.string()
       }).requiredKeys('key', 'nonce'), {
