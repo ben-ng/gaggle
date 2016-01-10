@@ -23,3 +23,17 @@ test('Rejects when invalid lock modes are used', function (t) {
     , 'Unlocking with EXCLUSIVE fails with the right error')
   })
 })
+
+test('Throws when constructor options are invalid', function (t) {
+  t.throws(function () {
+      /*eslint-disable no-unused-vars*/
+      var s = new Strategy({
+        logFunction: 'should be a function'
+      })
+      /*eslint-enable no-unused-vars*/
+    }
+  , /^Error: Invalid options: "logFunction" must be a Function$/
+  , 'Should throw if logFunction is not a function')
+
+  t.end()
+})
