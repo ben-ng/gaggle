@@ -1,6 +1,6 @@
 # Gaggle
 
-[![Build Status](https://circleci.com/gh/ben-ng/gaggle/tree/master.svg?style=svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master)
+[![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) ![Code Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)
 
 Gaggle helps you perform asynchronous business logic over a network. Specifically, it implements mutual exclusion with keyed locks.
 
