@@ -1,6 +1,6 @@
 var test = require('tape')
-  , NoopStrategy = require('../../strategies/noop-strategy')
-  , RedisStrategy = require('../../strategies/redis-strategy')
+  , NoopStrategy = require('../../../strategies/noop-strategy')
+  , RedisStrategy = require('../../../strategies/redis-strategy')
 
 test('Throws when constructor options are invalid', function (t) {
   t.throws(function () {

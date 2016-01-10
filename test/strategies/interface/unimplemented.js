@@ -1,5 +1,5 @@
 var test = require('tape')
-  , Strategy = require('../../strategies/unimplemented-strategy')
+  , Strategy = require('../../../strategies/unimplemented-strategy')
 
 test('Rejects when stub methods are called', function (t) {
   var s = new Strategy()

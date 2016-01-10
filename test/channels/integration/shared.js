@@ -1,6 +1,34 @@
 var test = require('tape')
   , uuid = require('uuid')
-  , Channel = require('../../channels/in-memory-channel')
+  , _ = require('lodash')
+  , InMemoryChannel = require('../../../channels/in-memory-channel')
+  , RedisChannel = require('../../../channels/redis-channel')
+  , channelsToTest = {
+      InMemory: {
+        create: function createInMemoryChannel () {
+          return new InMemoryChannel({id: uuid.v4()})
+        }
+      , cls: InMemoryChannel
+      }
+    , Redis: {
+        create: function createRedisChannel () {
+          return new RedisChannel({
+            id: uuid.v4()
+          , channelOptions: {
+              redisChannel: 'channelIntegrationTestChannel'
+            }
+          })
+        }
+      , cls: RedisChannel
+      }
+    }
+
+// Start outer EACH
+// Define these tests once for each channel
+_.each(channelsToTest, function (channelDetails, channelName) {
+
+var createChannel = channelDetails.create
+  , Channel = channelDetails.cls
 
 function openChannels (t, requestedChannelCount, cb) {
   var channels = []
@@ -59,7 +87,7 @@ function openChannels (t, requestedChannelCount, cb) {
   }
 
   for (i=0; i<requestedChannelCount; ++i) {
-    tempChannel = new Channel({id: uuid.v4()})
+    tempChannel = createChannel()
 
     tempChannel.once('connected', onConnect.bind(this, tempChannel))
     tempChannel.connect()
@@ -68,7 +96,7 @@ function openChannels (t, requestedChannelCount, cb) {
   }
 }
 
-test('throws when options are invalid', function (t) {
+test(channelName + ' channel integration - throws when options are invalid', function (t) {
 
   t.throws(function () {
     /* eslint-disable no-new */
@@ -86,9 +114,9 @@ test('throws when options are invalid', function (t) {
 
 })
 
-test('should connect after instantiation and disconnect when requested', function (t) {
+test(channelName + ' channel integration - should connect after instantiation and disconnect when requested', function (t) {
 
-  var c = new Channel({id: uuid.v4()})
+  var c = createChannel()
 
   c.once('disconnected', function () {
     t.pass('disconnected')
@@ -103,7 +131,7 @@ test('should connect after instantiation and disconnect when requested', functio
   c.connect()
 })
 
-test('should send a message to a specified node', function (t) {
+test(channelName + ' channel integration - should send a message to a specified node', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
     b.once('recieved', function (originNodeId, data) {
@@ -117,13 +145,13 @@ test('should send a message to a specified node', function (t) {
   })
 })
 
-test('test helper works', function (t) {
+test(channelName + ' channel integration - test helper works', function (t) {
   openChannels(t, 1, function (a, cleanup) {
     cleanup()
   })
 })
 
-test('test helper throws if you try to clean up the test twice', function (t) {
+test(channelName + ' channel integration - test helper throws if you try to clean up the test twice', function (t) {
   var fakeTest = {end: function noop () {}}
 
   openChannels(fakeTest, 1, function (a, cleanup) {
@@ -137,7 +165,7 @@ test('test helper throws if you try to clean up the test twice', function (t) {
   })
 })
 
-test('should broadcast a message to all nodes', function (t) {
+test(channelName + ' channel integration - should broadcast a message to all nodes', function (t) {
   openChannels(t, 3, function (a, b, c, cleanup) {
 
     b.once('recieved', function (originNodeId, data) {
@@ -154,4 +182,7 @@ test('should broadcast a message to all nodes', function (t) {
 
     a.broadcast('foo')
   })
+})
+
+// End outer EACH
 })

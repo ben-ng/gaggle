@@ -1,6 +1,7 @@
 var EventEmitter = require('events').EventEmitter
   , util = require('util')
   , Joi = require('joi')
+  , prettifyJoiError = require('../helpers/prettify-joi-error')
 
 /**
 * Channels are how nodes on the network communicate and must be initialized
@@ -33,16 +34,24 @@ var EventEmitter = require('events').EventEmitter
 function ChannelInterface (opts) {
   EventEmitter.call(this)
 
-  Joi.assert(opts || {}, Joi.object().keys({
+  var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
     id: Joi.string().guid()
-  }).requiredKeys(['id']), 'Channel options did not validate')
+  , logFunction: Joi.func().default(function noop () {})
+  , channelOptions: Joi.object()
+  }).requiredKeys('id'))
 
-  this.id = opts.id
+  if (validatedOptions.error != null) {
+    throw new Error(prettifyJoiError(validatedOptions.error))
+  }
+
+  this.id = validatedOptions.value.id
 
   this.state = {
     connected: false
   , isReconnecting: false
   }
+
+  this._log = validatedOptions.value.logFunction
 }
 
 util.inherits(ChannelInterface, EventEmitter)

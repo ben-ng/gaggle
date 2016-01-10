@@ -94,7 +94,7 @@ function testStrategy (createStrategy, _cb) {
 }
 
 test('atomic increment test fails when mutual exclusion is faulty', function (t) {
-  var Strategy = require('../../strategies/noop-strategy')
+  var Strategy = require('../../../strategies/noop-strategy')
 
   testStrategy(function () {
     return new Strategy()
@@ -111,7 +111,7 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
 })
 
 test('atomic increment - redis', function (t) {
-  var Strategy = require('../../strategies/redis-strategy')
+  var Strategy = require('../../../strategies/redis-strategy')
     , counter = 0
     , explicitOptions = {
         strategyOptions: {

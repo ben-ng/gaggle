@@ -1,5 +1,5 @@
 var test = require('tape')
-  , Strategy = require('../../strategies/noop-strategy')
+  , Strategy = require('../../../strategies/noop-strategy')
 
 test('Rejects when called after closed', function (t) {
   var s = new Strategy()

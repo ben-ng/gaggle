@@ -2,7 +2,7 @@
 * Coverage for edge cases in the redis strategy
 */
 
-var Strategy = require('../../strategies/redis-strategy')
+var Strategy = require('../../../strategies/redis-strategy')
   , test = require('tape')
   , _ = require('lodash')
 

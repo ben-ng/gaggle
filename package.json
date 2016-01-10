@@ -6,9 +6,9 @@
     "test": "test"
   },
   "scripts": {
-    "test": "covert test/**/*.js | faucet",
-    "test-verbose": "covert test/**/*.js",
-    "test-nocov": "tape test/**/*.js",
+    "test": "covert test/*/*/*.js | faucet",
+    "test-verbose": "covert test/*/*/*.js",
+    "test-nocov": "tape test/*/*/*.js",
     "tdd": "nodemon -x npm test"
   },
   "repository": {
