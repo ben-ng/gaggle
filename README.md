@@ -4,7 +4,9 @@
 
 Gaggle helps you perform asynchronous business logic over a network. Specifically, it implements mutual exclusion with keyed locks.
 
-# Example: Atomic Increment
+## Examples
+
+### Atomic Increment
 
 Without Gaggle, a situation like this might arise if multiple processes tried to update a value in a database that only supported "GET" and "SET" commands.
 
@@ -48,7 +50,7 @@ g.lock('myMutex', {
 
 ```
 
-# License
+## License
 
 Copyright (c) 2015 Ben Ng <me@benng.me>
 
