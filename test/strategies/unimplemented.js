@@ -8,13 +8,13 @@ test('Rejects when stub methods are called', function (t) {
 
   s.lock('dummy').catch(function (e) {
     t.equals(e.toString()
-    , 'Error: unimplemented method _setLockState is required by the Strategy interface'
+    , 'Error: unimplemented method _lock is required by the Strategy interface'
     , 'Lock fails with the right error')
   })
 
   s.unlock({key: 'dummy', nonce: 'dummy'}).catch(function (e) {
     t.equals(e.toString()
-    , 'Error: unimplemented method _setLockState is required by the Strategy interface'
+    , 'Error: unimplemented method _unlock is required by the Strategy interface'
     , 'Unlock fails with the right error')
   })
 

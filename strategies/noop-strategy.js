@@ -13,11 +13,15 @@ function NoopStrategy () {
 
 util.inherits(NoopStrategy, StrategyInterface)
 
-NoopStrategy.prototype._setLockState = function _setLockState (key) {
+NoopStrategy.prototype._lock = function _lock (key) {
   return Promise.resolve({
     key: key
   , nonce: uuid.v4()
   })
+}
+
+NoopStrategy.prototype._unlock = function _unlock () {
+  return Promise.resolve()
 }
 
 NoopStrategy.prototype._close = function _close () {
