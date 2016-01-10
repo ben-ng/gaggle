@@ -47,9 +47,6 @@ test('redis strategy - nonce mismatch when unlocking', function (t) {
   .then(function (lock) {
     return a.unlock(_.extend({}, lock, {nonce: 'whoops'}))
   })
-  .catch(function (err) {
-    t.ifError(err, 'Should not fail')
-  })
   .finally(function () {
     a.close()
 
