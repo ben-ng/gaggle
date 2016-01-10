@@ -1,6 +1,6 @@
 var test = require('tape')
   , uuid = require('uuid')
-  , Channel = require('../../lib/channels/local-in-memory')
+  , Channel = require('../../channels/in-memory-channel')
 
 function openChannels (t, requestedChannelCount, cb) {
   var channels = []

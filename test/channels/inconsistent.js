@@ -1,6 +1,6 @@
 var test = require('tape')
   , uuid = require('uuid')
-  , Channel = require('../../lib/channels/unimplemented')
+  , Channel = require('../../channels/unimplemented-channel')
 
 test('channels throw when inconsistent', function (t) {
   t.throws(function () {
