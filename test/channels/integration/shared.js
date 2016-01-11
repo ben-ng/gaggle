@@ -168,16 +168,22 @@ test(channelName + ' channel integration - test helper throws if you try to clea
 test(channelName + ' channel integration - should broadcast a message to all nodes', function (t) {
   openChannels(t, 3, function (a, b, c, cleanup) {
 
+    a.once('recieved', function (originNodeId, data) {
+      t.strictEquals(originNodeId, a.id, 'message origin should be node A')
+      t.strictEquals(data, 'foo', 'message contents should be "foo"')
+      cleanup.after(3)
+    })
+
     b.once('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')
       t.strictEquals(data, 'foo', 'message contents should be "foo"')
-      cleanup.after(2)
+      cleanup.after(3)
     })
 
     c.once('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')
       t.strictEquals(data, 'foo', 'message contents should be "foo"')
-      cleanup.after(2)
+      cleanup.after(3)
     })
 
     a.broadcast('foo')
