@@ -145,6 +145,20 @@ test(channelName + ' channel integration - should send a message to a specified 
   })
 })
 
+test(channelName + ' channel integration - should send a message to itself', function (t) {
+  openChannels(t, 1, function (a, cleanup) {
+
+    a.once('recieved', function (originNodeId, data) {
+      t.strictEquals(originNodeId, a.id, 'message origin should be node A')
+      t.strictEquals(data, 'foo', 'message contents should be "foo"')
+
+      cleanup()
+    })
+
+    a.send(a.id, 'foo')
+  })
+})
+
 test(channelName + ' channel integration - should be FIFO', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
