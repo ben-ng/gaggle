@@ -1,7 +1,7 @@
 {
   "name": "gaggle",
   "version": "1.0.1",
-  "description": "A distributed mutual exclusion algorithm",
+  "description": "Mutual exclusion made easy",
   "directories": {
     "test": "test"
   },
@@ -20,10 +20,13 @@
     "mutal",
     "exclusion",
     "mutex",
+    "lock",
     "semaphore",
     "maekawa",
     "lamport",
-    "transaction"
+    "transaction",
+    "ricart",
+    "agrawala"
   ],
   "author": "Ben Ng <me@benng.me>",
   "license": "MIT",
