@@ -2,13 +2,25 @@
 
 [![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) ![Code Coverage](https://img.shields.io/badge/code%20coverage-100%25-brightgreen.svg)
 
-Gaggle helps you perform asynchronous business logic over a network. Specifically, it implements mutual exclusion with keyed locks.
+Gaggle is a keyed mutex. It abstracts over different strategies for mutual exclusion, so you can choose your own tradeoffs.
+
+## Strategies
+
+Distributed strategies require the use of a [Channel](#Channels)
+
+Strategy  | Distributed? | Failure Tolerance                                                            | Description
+--------- | ------------ | ---------------------------------------------------------------------------- | ----------------
+Redis     | No           | Requires Redis to work, but processes can fail as locks automatically expire | Uses `SET EX NX`
+
+## Channels
+
+* Redis
 
 ## Examples
 
 ### Atomic Increment
 
-Without Gaggle, a situation like this might arise if multiple processes tried to increment an integer in a database that only supported "GET" and "SET" commands. This is known as the "lost update" problem.
+Multile processes are simultaneously trying to increment the same value in a database that only supports "GET" and "SET" commands. A situation like this might arise:
 
 ```
 Process A:
@@ -20,9 +32,10 @@ Process B:
 2. SET x 1
 
 Result: x = 1
+Expected: x = 2
 ```
 
-Solving this problem with Gaggle looks like this:
+This is known as the "lost update" problem. You can solve this problem with Gaggle like this:
 
 ```js
 
@@ -30,17 +43,19 @@ var RedisGaggle = require('gaggle').Redis
   , g = new RedisGaggle()
   , db = require('your-hypothetical-database')
 
-g.lock('myMutex', {
+g.lock('myLock', {    // You can create multiple locks by naming them
   duration: 1000      // Hold the lock for no longer than 1 second
 , maxWait: 5000       // Wait for no longer than 5s to acquire the lock
 })
 .then(lock => {
+  // Begin critical section
   return db.get('x')
   .then(value => {
     return db.set('x', value + 1)
   })
+  // End critical section
   .then(() => {
-    return g.unlock(lock)         // Unlocking with the same opaque object
+    return g.unlock(lock)
   })
 })
 .catch(err => {
@@ -50,7 +65,7 @@ g.lock('myMutex', {
 
 ```
 
-By protecting the `GET` and `SET` commands with a critical section, we guarantee that updates are not lost.
+By enclosing the `GET` and `SET` commands within the critical section, we guarantee that updates are not lost.
 
 ## License
 
