@@ -2,11 +2,11 @@
 
 [![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) ![Code Coverage](https://img.shields.io/badge/code%20coverage-100%25-brightgreen.svg)
 
-Gaggle is a keyed mutex. It abstracts over different strategies for mutual exclusion, so you can choose your own tradeoffs.
+Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) for mutual exclusion, so you can choose your own tradeoffs.
 
 ## Strategies
 
-Distributed strategies require the use of a [Channel](#Channels)
+Distributed strategies require the use of a [Channel](#channels)
 
 Strategy  | Distributed? | Failure Tolerance                                                            | Description
 --------- | ------------ | ---------------------------------------------------------------------------- | ----------------
