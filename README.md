@@ -8,7 +8,7 @@ Gaggle helps you perform asynchronous business logic over a network. Specificall
 
 ### Atomic Increment
 
-Without Gaggle, a situation like this might arise if multiple processes tried to update a value in a database that only supported "GET" and "SET" commands.
+Without Gaggle, a situation like this might arise if multiple processes tried to increment an integer in a database that only supported "GET" and "SET" commands. This is known as the "lost update" problem.
 
 ```
 Process A:
@@ -49,6 +49,8 @@ g.lock('myMutex', {
 })
 
 ```
+
+By protecting the `GET` and `SET` commands with a critical section, we guarantee that updates are not lost.
 
 ## License
 
