@@ -24,6 +24,7 @@ function StrategyInterface (opts) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
     logFunction: Joi.func().default(function noop () {})
   , strategyOptions: Joi.object()
+  , channel: Joi.object()
   }))
 
   if (validatedOptions.error != null) {
