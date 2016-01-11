@@ -14,7 +14,8 @@ Redis     | No           | Requires Redis to work, but processes can fail as loc
 
 ## Channels
 
-* Redis
+Channel | Options
+Redis   | ```js{redisChannel: 'foo' /*required*/, redisConnectionString: 'redis://user:pass@host:port'}```
 
 ## Examples
 
