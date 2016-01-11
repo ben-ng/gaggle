@@ -16,7 +16,7 @@ Redis     | No           | Requires Redis to work, but processes can fail as loc
 
 Channel | Options
 ------- | -------
-Redis   | ```js{redisChannel: 'foo' /*required*/, redisConnectionString: 'redis://user:pass@host:port'}```
+Redis   | <ul><li>**String** redisChannel *required*</li><li>**String** redisConnectionString `redis://user:pass@host:port`</li></ul>
 
 ## Examples
 
@@ -41,8 +41,8 @@ This is known as the "lost update" problem. You can solve this problem with Gagg
 
 ```js
 
-var RedisGaggle = require('gaggle').Redis
-  , g = new RedisGaggle()
+var Gaggle = require('gaggle').Redis// Gaggle behaves the same way with any strategy & channel
+  , g = new Gaggle()
   , db = require('your-hypothetical-database')
 
 g.lock('myLock', {    // You can create multiple locks by naming them
