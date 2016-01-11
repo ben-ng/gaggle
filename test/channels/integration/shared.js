@@ -145,6 +145,32 @@ test(channelName + ' channel integration - should send a message to a specified 
   })
 })
 
+test(channelName + ' channel integration - should be FIFO', function (t) {
+  openChannels(t, 2, function (a, b, cleanup) {
+
+    var previous = -1
+      , sequenceLength = 1000
+      , finish = _.after(function () {
+          b.removeAllListeners()
+          cleanup()
+        }, sequenceLength)
+
+    b.on('recieved', function (originNodeId, data) {
+      t.strictEquals(originNodeId, a.id, 'message origin should be node A')
+
+      t.strictEquals(parseInt(data, 10), previous + 1, 'message should be in order')
+
+      previous = previous + 1
+
+      finish()
+    })
+
+    for (var i=0; i<sequenceLength; ++i) {
+      a.send(b.id, i)
+    }
+  })
+})
+
 test(channelName + ' channel integration - test helper works', function (t) {
   openChannels(t, 1, function (a, cleanup) {
     cleanup()
