@@ -1,6 +1,6 @@
 {
   "name": "gaggle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A distributed mutual exclusion algorithm",
   "directories": {
     "test": "test"
