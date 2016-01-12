@@ -50,7 +50,6 @@ function LeaderStrategy (opts) {
   if (validatedOptions.error != null) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
-
   // For convenience
   electMin = validatedOptions.value.strategyOptions.electionTimeout.min
   electMax = validatedOptions.value.strategyOptions.electionTimeout.max
@@ -101,6 +100,8 @@ function LeaderStrategy (opts) {
     , leaderCommit: self._commitIndex
     })
 
+    clearInterval(self._leaderHeartbeatInterval)
+
     self._leaderHeartbeatInterval = setInterval(function () {
       self._channel.broadcast({
         type: RPC_TYPE.APPEND_ENTRIES
@@ -148,27 +149,28 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
       self._channel.send(originNodeId, {
         type: RPC_TYPE.REQUEST_VOTE_REPLY
       , term: self._currentTerm
-      , success: false
+      , votedGranted: false
       })
       return
     }
 
-    if (self._votedFor == null &&
+    if ((self._votedFor == null || self._votedFor === data.candidateId) &&
       (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length)) {
       self._votedFor = data.candidateId
       self._channel.send(data.candidateId, {
         type: RPC_TYPE.REQUEST_VOTE_REPLY
       , term: self._currentTerm
-      , success: true
+      , votedGranted: true
       })
       return
     }
     break
 
     case RPC_TYPE.REQUEST_VOTE_REPLY:
+    // broadcasts reach ourselves, so we'll actually vote for ourselves here
     if (self._state === STATES.CANDIDATE &&
-        originNodeId !== self.id &&
-        data.term === self._currentTerm) { // broadcasts reach ourselves
+        data.term === self._currentTerm &&
+        data.votedGranted === true) {
 
       self._votes[originNodeId] = true
 
@@ -181,7 +183,7 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
 
     case RPC_TYPE.APPEND_ENTRIES:
     // This is how you lose an election
-    if (data.term >= self._currentTerm) {
+    if (data.term >= self._currentTerm && self._state !== STATES.LEADER) {
       self._state = STATES.FOLLOWER
       self._leader = originNodeId
     }
@@ -254,6 +256,7 @@ LeaderStrategy.prototype._beginElection = function _beginElection () {
 
   this._currentTerm = this._currentTerm + 1
   this._state = STATES.CANDIDATE
+  this._leader = null
   this._votedFor = this.id
   this._votes = {}
 

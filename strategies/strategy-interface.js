@@ -25,13 +25,13 @@ function StrategyInterface (opts) {
   , strategyOptions: Joi.object()
   , channel: Joi.object()
   , id: Joi.string()
-  }))
+  }).requiredKeys('id'))
 
   if (validatedOptions.error != null) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
 
-  this.id = validatedOptions.id
+  this.id = validatedOptions.value.id
   this._logFunction = validatedOptions.value.logFunction
   this._closed = false
 }
