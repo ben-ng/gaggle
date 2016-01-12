@@ -125,7 +125,7 @@ test('atomic increment - redis', function (t) {
     counter = counter + 1
 
     // Gives us coverage for both default and explicit init
-    return new Strategy(counter % 2 === 0 ? explicitOptions : null)
+    return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
   , function (err) {
     t.equal(err, undefined, 'unexpected error: ' + err)

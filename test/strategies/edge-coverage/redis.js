@@ -5,10 +5,11 @@
 var Strategy = require('../../../strategies/redis-strategy')
   , test = require('tape')
   , _ = require('lodash')
+  , uuid = require('uuid')
 
 test('redis strategy - acquisition times out', function (t) {
-  var a = new Strategy()
-    , b = new Strategy()
+  var a = new Strategy({id: uuid.v4()})
+    , b = new Strategy({id: uuid.v4()})
     , sameKey = 'timeOutLock'
     , sawExpectedErr = false
 
@@ -38,7 +39,7 @@ test('redis strategy - acquisition times out', function (t) {
 })
 
 test('redis strategy - nonce mismatch when unlocking', function (t) {
-  var a = new Strategy()
+  var a = new Strategy({id: uuid.v4()})
     , sameKey = 'nonceMismatchLock'
 
   a.lock(sameKey, {

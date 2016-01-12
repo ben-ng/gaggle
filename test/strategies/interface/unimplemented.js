@@ -1,8 +1,9 @@
 var test = require('tape')
+  , uuid = require('uuid')
   , Strategy = require('../../../strategies/unimplemented-strategy')
 
 test('Rejects when stub methods are called', function (t) {
-  var s = new Strategy()
+  var s = new Strategy({id: uuid.v4()})
 
   t.plan(3)
 
