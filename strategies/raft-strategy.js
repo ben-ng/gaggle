@@ -65,6 +65,7 @@ function LeaderStrategy (opts) {
   // "When servers start up, they begin as followers"
   // p16
   this._state = STATES.FOLLOWER
+  this._leader = null
 
   this._currentTerm = 0
   this._votedFor = null
@@ -135,6 +136,7 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
 
   if (data.term > self._currentTerm) {
     self._currentTerm = data.term
+    self._leader = null
     self._votedFor = null
     self._state = STATES.FOLLOWER
     clearInterval(self._leaderHeartbeatInterval)
@@ -178,9 +180,10 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
     break
 
     case RPC_TYPE.APPEND_ENTRIES:
-    // We lost the election, there is a leader for a later term
-    if (self._state === STATES.CANDIDATE && data.term >= self._currentTerm) {
+    // This is how you lose an election
+    if (data.term >= self._currentTerm) {
       self._state = STATES.FOLLOWER
+      self._leader = originNodeId
     }
 
     // Reciever Implementation 1 & 2

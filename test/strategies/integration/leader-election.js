@@ -1,8 +1,5 @@
 /**
-* Test if multiple gaggles can atomically increment a value
-*
-* Each process starts up, creates a gaggle, and then tries to increment
-* a value 1000 times.
+* Test if leader election is working
 */
 
 var test = require('tape')
@@ -12,25 +9,26 @@ var test = require('tape')
   , Promise = require('bluebird')
 
 test('elects exactly one leader when no process fails', function (t) {
-  var Strategy = require('../../../strategies/leader-strategy')
+  var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/redis-channel')
     , CHAN = 'leaderElectionTestChannel'
     , CLUSTER_SIZE = 5
-    , POLLS = 200
     , POLLING_INTERVAL = 10
-    , pollCounter = 0
     , cluster = []
     , tempId
     , tempChannel
-    , countLeaders
+    , hasReachedLeaderConsensus
 
-  countLeaders = function countLeaders () {
+  hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
-      , leaders = _.filter(cluster, function (node) {
-          return node._state === Strategy._STATES.LEADER && node._currentTerm === maxTerm
+      , leaders = _(cluster).filter(function (node) {
+          return node._currentTerm === maxTerm
+        }).pluck('_leader').compact().valueOf()
+      , followerCount = _.filter(cluster, function (node) {
+          return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
         }).length
 
-    return leaders
+    return leaders.length === CLUSTER_SIZE && _.uniq(leaders).length === 1 && followerCount === CLUSTER_SIZE
   }
 
   for (var i=0; i<CLUSTER_SIZE; ++i) {
@@ -52,18 +50,11 @@ test('elects exactly one leader when no process fails', function (t) {
   }
 
   async.whilst(function () {
-    return pollCounter < POLLS
+    return !hasReachedLeaderConsensus()
   }, function (next) {
-    var leaders = countLeaders()
-
-    t.ok(leaders <= 1, 'There should never be more than one leader, found ' + leaders)
-
-    pollCounter = pollCounter + 1
-
     setTimeout(next, POLLING_INTERVAL)
   }, function () {
-
-    t.equals(countLeaders(), 1, 'Exactly one leader was elected')
+    t.pass('Exactly one leader was elected, and all nodes agree on who that is')
 
     Promise.map(cluster, function (node) {
       return node.close()

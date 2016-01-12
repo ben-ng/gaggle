@@ -1,16 +1,15 @@
 /**
-* Coverage for edge cases in the redis strategy
+* Coverage for edge cases in the raft strategy
 */
 
-var Strategy = require('../../../strategies/leader-strategy')
+var Strategy = require('../../../strategies/raft-strategy')
   , test = require('tape')
-  , _ = require('lodash')
 
-test('leader strategy - missing options', function (t) {
+test('raft strategy - missing options', function (t) {
   t.throws(function () {
-    /*eslint-disable: no-unused-vars*/
+    /*eslint-disable no-unused-vars*/
     var a = new Strategy()
-    /*eslint-enable: no-unused-vars*/
+    /*eslint-enable no-unused-vars*/
   }, 'Should throw if missing options')
 
   t.end()
