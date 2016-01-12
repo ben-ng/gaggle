@@ -2,51 +2,19 @@ var StrategyInterface = require('./strategy-interface')
   , Joi = require('joi')
   , util = require('util')
   , Promise = require('bluebird')
-  , async = require('async')
   , _ = require('lodash')
-  , uuid = require('uuid')
   , prettifyJoiError = require('../helpers/prettify-joi-error')
   , STATES = {
       CANDIDATE: 'CANDIDATE'
     , LEADER: 'LEADER'
     , FOLLOWER: 'FOLLOWER'
     }
-  , schemasToConstructors = function (schemas) {
-      var constructors = {}
-
-      // Convert schemas into factory functions
-      _.each(schemas, function (schema, key) {
-        constructors[key] = function _constructMessage (opts) {
-          var result = Joi.validate(opts, schema)
-
-          if (result.error != null) {
-            throw new Error('Could not construct malformed ' + key + ' message: ' +
-              prettifyJoiError(result.error))
-          }
-
-          return {
-            type: key
-          , payload: _.cloneDeep(result.value)
-          }
-        }
-      })
+  , RPC_TYPE = {
+      REQUEST_VOTE: 'REQUEST_VOTE'
+    , REQUEST_VOTE_REPLY: 'REQUEST_VOTE_REPLY'
+    , APPEND_ENTRIES: 'APPEND_ENTRIES'
+    , APPEND_ENTRIES_REPLY: 'APPEND_ENTRIES_REPLY'
     }
-  , RPC = schemasToConstructors({
-      requestVote: Joi.object().keys({
-        term: Joi.number()
-      , candidateId: Joi.string()
-      }).requiredKeys('term', 'candidateId')
-    , requestVoteReply: Joi.object().keys({
-        term: Joi.number()
-      , voteGranted: Joi.boolean()
-      }).requiredKeys('term', 'voteGranted')
-    , heartbeat: Joi.object().keys({
-        term: Joi.number()
-      }).requiredKeys('term')
-    , heartbeatReply: Joi.object().keys({
-        term: Joi.number()
-      }).requiredKeys('term')
-    })
 
 /**
 * A naive solution to distributed mutual exclusion. Performs leader election
@@ -58,17 +26,24 @@ var StrategyInterface = require('./strategy-interface')
 */
 
 function LeaderStrategy (opts) {
-  var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
+  var self = this
+    , validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
         strategyOptions: Joi.object().keys({
           electionTimeout: Joi.object().keys({
             min: Joi.number().min(0)
           , max: Joi.number().min(Joi.ref('strategyOptions.electionTimeout.min'))
-          })
+          }).default({min: 150, max: 300})
+        , heartbeatInterval: Joi.number().min(0).default(50)
+        , clusterSize: Joi.number().min(1)
         })
       , channel: Joi.object()
-      }), {
+      , id: Joi.string()
+      }).requiredKeys('strategyOptions', 'strategyOptions.clusterSize'), {
         convert: false
       })
+    , electMin
+    , electMax
+    , heartbeatInterval
 
   StrategyInterface.apply(this, Array.prototype.slice.call(arguments))
 
@@ -76,61 +51,244 @@ function LeaderStrategy (opts) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
 
+  // For convenience
+  electMin = validatedOptions.value.strategyOptions.electionTimeout.min
+  electMax = validatedOptions.value.strategyOptions.electionTimeout.max
+  this._clusterSize = validatedOptions.value.strategyOptions.clusterSize
+  heartbeatInterval = validatedOptions.value.strategyOptions.heartbeatInterval
+
+  opts.channel.connect()
   this._channel = opts.channel
+
+  // Volatile state on all servers
+
+  // "When servers start up, they begin as followers"
+  // p16
+  this._state = STATES.FOLLOWER
 
   this._currentTerm = 0
   this._votedFor = null
+  this._log = []
+  this._commitIndex = 0
+  this._lastApplied = 0
 
-  this._beginElection()
+  // Volatile state on leaders
+  this._nextIndex = {}
+  this._matchIndex = {}
+
+  // Volatile state on candidates
+  this._votes = {}
+
+  // "If a follower recieves no communication over a period of time called the election timeout
+  // then it assumes there is no viable leader and begins an election to choose a new leader"
+  // p16
+  this._lastCommunicationTimestamp = Date.now()
+
+  this._generateRandomElectionTimeout = function _generateRandomElectionTimeout () {
+    return _.random(electMin, electMax, false) // no floating points
+  }
+
+  this._beginLeaderHeartbeat = function _beginLeaderHeartbeat () {
+    // Send initial blank entry
+    self._channel.broadcast({
+      type: RPC_TYPE.APPEND_ENTRIES
+    , term: self._currentTerm
+    , leaderId: self.id
+    , prevLogIndex: -1
+    , prevLogTerm: -1
+    , entries: []
+    , leaderCommit: self._commitIndex
+    })
+
+    self._leaderHeartbeatInterval = setInterval(function () {
+      self._channel.broadcast({
+        type: RPC_TYPE.APPEND_ENTRIES
+      , term: self._currentTerm
+      , leaderId: self.id
+      , prevLogIndex: -1
+      , prevLogTerm: -1
+      , entries: []
+      , leaderCommit: self._commitIndex
+      })
+    }, heartbeatInterval)
+  }
+
+  this._onMessageRecieved = _.bind(this._onMessageRecieved, this)
+  this._channel.on('recieved', this._onMessageRecieved)
+
+  this._resetElectionTimeout()
 }
 
 util.inherits(LeaderStrategy, StrategyInterface)
 
+LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (originNodeId, data) {
+  var self = this
+    , conflictedAt = -1
+
+  self._resetElectionTimeout()
+
+  // data always has the following keys:
+  // {
+  //   type: the RPC method call or response
+  //   term: some integer
+  // }
+
+  if (data.term > self._currentTerm) {
+    self._currentTerm = data.term
+    self._votedFor = null
+    self._state = STATES.FOLLOWER
+    clearInterval(self._leaderHeartbeatInterval)
+  }
+
+  switch (data.type) {
+    case RPC_TYPE.REQUEST_VOTE:
+    if (data.term < self._currentTerm) {
+      self._channel.send(originNodeId, {
+        type: RPC_TYPE.REQUEST_VOTE_REPLY
+      , term: self._currentTerm
+      , success: false
+      })
+      return
+    }
+
+    if (self._votedFor == null &&
+      (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length)) {
+      self._votedFor = data.candidateId
+      self._channel.send(data.candidateId, {
+        type: RPC_TYPE.REQUEST_VOTE_REPLY
+      , term: self._currentTerm
+      , success: true
+      })
+      return
+    }
+    break
+
+    case RPC_TYPE.REQUEST_VOTE_REPLY:
+    if (self._state === STATES.CANDIDATE &&
+        originNodeId !== self.id &&
+        data.term === self._currentTerm) { // broadcasts reach ourselves
+
+      self._votes[originNodeId] = true
+
+      if (_.values(self._votes).length > Math.ceil(this._clusterSize/2)) {
+        self._state = STATES.LEADER
+        self._beginLeaderHeartbeat()
+      }
+    }
+    break
+
+    case RPC_TYPE.APPEND_ENTRIES:
+    // We lost the election, there is a leader for a later term
+    if (self._state === STATES.CANDIDATE && data.term >= self._currentTerm) {
+      self._state = STATES.FOLLOWER
+    }
+
+    // Reciever Implementation 1 & 2
+    // p13
+    if (data.term < self._currentTerm ||
+      self._log[data.prevLogIndex] == null  ||
+      self._log[data.prevLogIndex].term !== data.prevLogTerm) {
+      self._channel.send(originNodeId, {
+        type: RPC_TYPE.APPEND_ENTRIES_REPLY
+      , term: self._currentTerm
+      , success: false
+      })
+      return
+    }
+
+    _.each(data.entries, function (entry) {
+      // entry is:
+      // {index: 0, term: 0, data: {foo: bar}}
+      var idx = entry.index
+
+      if (self._log[idx] != null && self._log[idx].term !== entry.term) {
+        conflictedAt = idx
+      }
+    })
+
+    if (conflictedAt > 0) {
+      self._log = self._log.slice(0, conflictedAt)
+    }
+
+    _.each(data.entries, function (entry) {
+      var idx = entry.index
+
+      if (self._log[idx] == null) {
+        self._log[idx] = {
+          term: entry.term
+        , data: entry.data
+        }
+      }
+    })
+
+    if (data.leaderCommit > self._commitIndex) {
+      self._commitIndex = Math.min(data.leaderCommit, Math.max.apply(null, _.pluck(data.entries, 'index')))
+    }
+
+    break
+  }
+}
+
+LeaderStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout () {
+  var self = this
+
+  if (this._electionTimeout != null) {
+    clearTimeout(this._electionTimeout)
+  }
+
+  this._electionTimeout = setTimeout(function () {
+    self._resetElectionTimeout()
+    self._beginElection()
+  }, this._generateRandomElectionTimeout())
+}
+
 LeaderStrategy.prototype._beginElection = function _beginElection () {
-  this._state = STATES.CANDIDATE
+  // To begin an election, a follower increments its current term and transitions to
+  // candidate state. It then votes for itself and issues RequestVote RPCs in parallel
+  // to each of the other servers in the cluster.
+  // p16
+  var lastLogIndex
+
   this._currentTerm = this._currentTerm + 1
+  this._state = STATES.CANDIDATE
   this._votedFor = this.id
+  this._votes = {}
 
-  this._channel.broadcast(RPC.requestVote({
-    term: this._currentTerm
+  lastLogIndex = this._log.length - 1
+
+  this._channel.broadcast({
+    type: RPC_TYPE.REQUEST_VOTE
+  , term: this._currentTerm
   , candidateId: this.id
-  }))
-}
-
-LeaderStrategy.prototype._lock = function _lock (key, opts) {
-  var acquired = false
-    , started = Date.now()
-    , MAX_WAIT = opts.maxWait
-    , LOCK_DURATION = opts.duration
-    , r = this._redis
-    , newNonce = this.id + '_' + uuid.v4()
-
-  if (this._state === STATES.CANDIDATE) {
-    return Promise.reject(new Error('An election is currently in progress'))
-  }
-  else {
-
-  }
-}
-
-LeaderStrategy.prototype._unlock = function _unlock (lock) {
-  var r = this._redis
-
-  return r.getAsync(lock.key)
-  .then(function (res) {
-    if (res === lock.nonce) {
-      return r.delAsync(lock.key)
-    }
-    else {
-      return Promise.resolve()
-    }
+  , lastLogIndex: lastLogIndex
+  , lastLogTerm: lastLogIndex > 0 ? self._log[lastLogIndex].term : -1
   })
 }
 
-LeaderStrategy.prototype._close = function _close () {
-  this._redis.quit()
+LeaderStrategy.prototype._lock = function _lock (key, opts) {
+  return Promise.reject(new Error('Unimplemented'))
+}
 
-  return Promise.resolve()
+LeaderStrategy.prototype._unlock = function _unlock (lock) {
+  return Promise.reject(new Error('Unimplemented'))
+}
+
+LeaderStrategy.prototype._close = function _close () {
+  var self = this
+
+  this._channel.removeListener('recieved', this._onMessageRecieved)
+  clearTimeout(this._electionTimeout)
+  clearInterval(this._leaderHeartbeatInterval)
+
+  return new Promise(function (resolve, reject) {
+    self._channel.once('disconnected', function () {
+      resolve()
+    })
+    self._channel.disconnect()
+  })
 }
 
 module.exports = LeaderStrategy
+
+module.exports._STATES = _.cloneDeep(STATES)
+

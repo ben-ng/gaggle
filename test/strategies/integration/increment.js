@@ -10,6 +10,7 @@ var Promise = require('bluebird')
   , async = require('async')
   , redis = require('redis')
   , once = require('once')
+  , uuid = require('uuid')
 
 Promise.promisifyAll(redis.RedisClient.prototype)
 
@@ -97,7 +98,7 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
   var Strategy = require('../../../strategies/noop-strategy')
 
   testStrategy(function () {
-    return new Strategy()
+    return new Strategy({id: uuid.v4()})
   }, function (err) {
     t.ok(err, 'There should be an error')
 
@@ -117,6 +118,7 @@ test('atomic increment - redis', function (t) {
         strategyOptions: {
           redisConnectionString: 'redis://127.0.0.1'
         }
+      , id: uuid.v4()
       }
 
   testStrategy(function () {

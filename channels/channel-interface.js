@@ -51,7 +51,11 @@ function ChannelInterface (opts) {
   , isReconnecting: false
   }
 
-  this._log = validatedOptions.value.logFunction
+  this._logFunction = validatedOptions.value.logFunction
+
+  // Avoid duplicate messages
+  this._lastRecievedMap = {}
+  this._sequence = 0
 }
 
 util.inherits(ChannelInterface, EventEmitter)
@@ -60,12 +64,18 @@ util.inherits(ChannelInterface, EventEmitter)
 * For channel implementors:
 * Call this when a message is recieved
 */
-ChannelInterface.prototype._recieved = function _recieved (originNodeId, data) {
+ChannelInterface.prototype._recieved = function _recieved (originNodeId, packet) {
   if (this.state.connected === false) {
     throw new Error('_recieve was called although the channel is in the disconnected state')
   }
   else {
-    this.emit('recieved', originNodeId, data)
+    if (this._lastRecievedMap[originNodeId] == null || this._lastRecievedMap[originNodeId] < packet.sequence) {
+      this._lastRecievedMap[originNodeId] = packet.sequence
+
+      this._logFunction(this.id + ' recieved from ' + originNodeId + '\n' + JSON.stringify(packet.data, null, 2))
+      this.emit('recieved', originNodeId, packet.data)
+    }
+    // else, this is a duplicate, and we should ignore it
   }
 }
 
@@ -137,7 +147,8 @@ ChannelInterface.prototype.disconnect = function disconnect () {
 */
 ChannelInterface.prototype.broadcast = function broadcast (data) {
   if (typeof this._broadcast === 'function') {
-    return this._broadcast(data)
+    this._logFunction(this.id + ' broadcasted\n' + JSON.stringify(data, null, 2))
+    return this._broadcast(this._createPacket(data))
   }
   else {
     throw new Error('Not implemented')
@@ -150,10 +161,25 @@ ChannelInterface.prototype.broadcast = function broadcast (data) {
 */
 ChannelInterface.prototype.send = function send (nodeId, data) {
   if (typeof this._send === 'function') {
-    return this._send(nodeId, data)
+    this._logFunction(this.id + ' sent to ' + nodeId + '\n' + JSON.stringify(data, null, 2))
+    return this._send(nodeId, this._createPacket(data))
   }
   else {
     throw new Error('Not implemented')
+  }
+}
+
+/**
+* Private method that creates a data packet
+*/
+ChannelInterface.prototype._createPacket = function createPacket (data) {
+  var seq = this._sequence
+
+  this._sequence = this._sequence + 1
+
+  return {
+    data: data
+  , sequence: seq
   }
 }
 

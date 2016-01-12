@@ -43,8 +43,8 @@ RedisChannel.prototype._connect = function _connect () {
         self._connected()
       }, 2)
 
-  subClient.on('error', this._log)
-  pubClient.on('error', this._log)
+  subClient.on('error', this._logFunction)
+  pubClient.on('error', this._logFunction)
 
   subClient.on('message', function (channel, message) {
     var parsed
