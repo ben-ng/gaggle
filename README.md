@@ -1,6 +1,6 @@
 # Gaggle
 
-[![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle/master.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) ![Code Coverage](https://img.shields.io/badge/code%20coverage-100%25-brightgreen.svg)
+[![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle/master.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) [![Code Coverage](https://img.shields.io/badge/code%20coverage-100%25-brightgreen.svg)](https://github.com/ben-ng/gaggle/tree/master/test)
 
 Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) for mutual exclusion, so you can choose your own tradeoffs.
 
