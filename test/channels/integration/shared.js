@@ -163,7 +163,7 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
     var previous = -1
-      , sequenceLength = 1000
+      , sequenceLength = 50
       , finish = _.after(function () {
           b.removeAllListeners()
           cleanup()
