@@ -18,6 +18,7 @@ var StrategyInterface = require('./strategy-interface')
     , APPEND_ENTRIES: 'APPEND_ENTRIES'
     , APPEND_ENTRIES_REPLY: 'APPEND_ENTRIES_REPLY'
     , REQUEST_LOCK: 'REQUEST_LOCK'
+    , REQUEST_LOCK_REPLY: 'REQUEST_LOCK_REPLY'
     , REQUEST_UNLOCK: 'REQUEST_UNLOCK'
     , REQUEST_UNLOCK_REPLY: 'REQUEST_UNLOCK_REPLY'
     }
@@ -38,7 +39,7 @@ function LeaderStrategy (opts) {
           electionTimeout: Joi.object().keys({
             min: Joi.number().min(0)
           , max: Joi.number().min(Joi.ref('strategyOptions.electionTimeout.min'))
-          }).default({min: 150, max: 300})
+          }).default({min: 500, max: 1000})
         , heartbeatInterval: Joi.number().min(0).default(50)
         , clusterSize: Joi.number().min(1)
         })
@@ -65,6 +66,9 @@ function LeaderStrategy (opts) {
   opts.channel.connect()
   this._channel = opts.channel
 
+  // Used for internal communication, such as when an entry is committed
+  this._emitter = new EventEmitter()
+
   // Volatile state on all servers
 
   // "When servers start up, they begin as followers"
@@ -77,6 +81,17 @@ function LeaderStrategy (opts) {
   this._log = []
   this._commitIndex = -1
   this._lastApplied = -1
+
+  // This is the "state machine" that log entries will be applied to
+  // It's just a map in this format:
+  // {
+  //   key_a: {nonce: 'foo', ttl: 1234},
+  //   key_b: {nonce: 'foo', ttl: 1234},
+  //   ...
+  // }
+  this._lockMap = {}
+
+  this._emitter.on('committed', _.bind(this._onEntryCommitted, this))
 
   // Volatile state on leaders
   this._nextIndex = {}
@@ -109,7 +124,9 @@ function LeaderStrategy (opts) {
       })
     })
 
-    clearInterval(self._leaderHeartbeatInterval)
+    if (self._leaderHeartbeatInterval != null) {
+      clearInterval(self._leaderHeartbeatInterval)
+    }
 
     self._leaderHeartbeatInterval = setInterval(function () {
 
@@ -153,9 +170,6 @@ function LeaderStrategy (opts) {
   this._channel.on('recieved', this._onMessageRecieved)
 
   this._resetElectionTimeout()
-
-  // Used for internal communication, such as when an entry is committed
-  this._emitter = new EventEmitter()
 }
 
 util.inherits(LeaderStrategy, StrategyInterface)
@@ -164,6 +178,8 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
   var self = this
     , i
     , ii
+
+  self._resetElectionTimeout()
 
   self._handleMessage(originNodeId, data)
 
@@ -199,12 +215,79 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
   }
 }
 
+LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
+  var self = this
+    , key = entry.key
+    , duration = entry.duration
+    , nonce = entry.nonce
+
+  if (self._state === STATES.LEADER) {
+    // Locks are requested with a duration, but when the leader decides its time to
+    // grant a lock, that duration is turned into a ttl
+    var ttl
+      , lockMapEntry = self._lockMap[key]
+
+    // If the state machine doesn't contain the key, or the lock has expired...
+    if (lockMapEntry == null || lockMapEntry.ttl < Date.now() && lockMapEntry.isProvisionalLock !== true) {
+      ttl = Date.now() + duration
+
+      self._log.push({
+        term: self._currentTerm
+        // Replace duration and maxWait with ttl; that information is useless
+        // now, and the ttl is all that matters to the cluster
+      , data: _.extend({ttl: ttl}, _.omit(entry, 'duration', 'maxWait'))
+      })
+
+      self._lockMap[key] = {
+        isProvisionalLock: true
+      , ttl: ttl
+      , nonce: nonce
+      }
+
+      self._channel.send(entry.requester, {
+        type: RPC_TYPE.REQUEST_LOCK_REPLY
+      , term: self._currentTerm
+      , nonce: nonce
+      , provisionalLockCreated: true
+      })
+    }
+  }
+  else {
+    self._channel.send(entry.requester, {
+      type: RPC_TYPE.REQUEST_LOCK_REPLY
+    , term: self._currentTerm
+    , nonce: nonce
+    , provisionalLockCreated: false
+    })
+  }
+}
+
+LeaderStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) {
+  var self = this
+
+  if (self._state === STATES.LEADER) {
+    var key = entry.key
+      , nonce = entry.nonce
+
+    if (self._lockMap[key] != null && self._lockMap[key].nonce === nonce) {
+      self._log.push({
+        term: self._currentTerm
+        // Replace duration and maxWait with ttl; that information is useless
+        // now, and the ttl is all that matters to the cluster
+      , data: {
+          key: key
+        , nonce: nonce
+        , ttl: -1
+        }
+      })
+    }
+  }
+}
+
 LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId, data) {
 
   var self = this
     , conflictedAt = -1
-
-  self._resetElectionTimeout()
 
   // data always has the following keys:
   // {
@@ -222,18 +305,31 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
 
   switch (data.type) {
     case RPC_TYPE.REQUEST_LOCK:
-    case RPC_TYPE.REQUEST_UNLOCK:
     if (data.term === self._currentTerm && self._state === STATES.LEADER) {
-      self._log.push({
-        term: self._currentTerm
-      , data: {
-          key: data.key
-        , nonce: data.nonce
-        , ttl: data.type === RPC_TYPE.REQUEST_UNLOCK ? -1 : data.ttl
-        }
+      self._lockIfPossible({
+        key: data.key
+      , nonce: data.nonce
+      , duration: data.duration
+      , maxWait: data.maxWait
+      , requester: originNodeId
       })
     }
+    break
 
+    case RPC_TYPE.REQUEST_LOCK_REPLY:
+      if (data.provisionalLockCreated !== true) {
+        self._emitter.emit('lockRejected', data.nonce)
+      }
+    break
+
+
+    case RPC_TYPE.REQUEST_UNLOCK:
+    if (data.term === self._currentTerm && self._state === STATES.LEADER) {
+      self._unlockIfPossible({
+        key: data.key
+      , nonce: data.nonce
+      })
+    }
     break
 
     case RPC_TYPE.REQUEST_VOTE:
@@ -260,16 +356,17 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
 
     case RPC_TYPE.REQUEST_VOTE_REPLY:
     // broadcasts reach ourselves, so we'll actually vote for ourselves here
-    if (self._state === STATES.CANDIDATE &&
-        data.term === self._currentTerm &&
+    if (data.term === self._currentTerm &&
         data.votedGranted === true) {
 
       // Keep collecting votes because that's how we discover what process ids are
       // in the system
       self._votes[originNodeId] = true
 
-      if (_.values(self._votes).length > Math.ceil(this._clusterSize/2) && // Wait for a majority
-        self._state !== STATES.LEADER) { // Stops this from happening when additional votes come in
+      // Stops this from happening when extra votes come in
+      if (self._state === STATES.CANDIDATE &&
+      _.values(self._votes).length > Math.ceil(this._clusterSize/2) // Wait for a majority
+      ) {
         self._state = STATES.LEADER
         self._nextIndex = {}
         self._matchIndex = {}
@@ -374,15 +471,16 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
 
 LeaderStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout () {
   var self = this
+    , timeout = self._generateRandomElectionTimeout()
 
-  if (this._electionTimeout != null) {
-    clearTimeout(this._electionTimeout)
+  if (self._electionTimeout != null) {
+    clearTimeout(self._electionTimeout)
   }
 
-  this._electionTimeout = setTimeout(function () {
+  self._electionTimeout = setTimeout(function () {
     self._resetElectionTimeout()
     self._beginElection()
-  }, this._generateRandomElectionTimeout())
+  }, timeout)
 }
 
 LeaderStrategy.prototype._beginElection = function _beginElection () {
@@ -405,7 +503,7 @@ LeaderStrategy.prototype._beginElection = function _beginElection () {
   , term: this._currentTerm
   , candidateId: this.id
   , lastLogIndex: lastLogIndex
-  , lastLogTerm: lastLogIndex > 0 ? self._log[lastLogIndex].term : -1
+  , lastLogTerm: lastLogIndex > 0 ? this._log[lastLogIndex].term : -1
   })
 }
 
@@ -415,34 +513,28 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
     , sendRequestToLeader
 
   sendRequestToLeader = once(function sendRequestToLeader () {
-    self._channel.send(self.leader, {
+    self._channel.send(self._leader, {
       type: RPC_TYPE.REQUEST_LOCK
     , term: self._currentTerm
     , key: key
-    , ttl: Date.now() + opts.duration
+    , duration: opts.duration
+    , maxWait: opts.maxWait
     , nonce: sameNonce
     })
   })
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
-    self._log.push({
-      term: self._currentTerm
-    , data: {
-        key: key
-      , ttl: Date.now() + opts.duration
-      , nonce: sameNonce
-      }
+    self._lockIfPossible({
+      key: key
+    , nonce: sameNonce
+    , duration: opts.duration
+    , maxWait: opts.maxWait
+    , requester: self.id
     })
   }
   else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    self._channel.send(self.leader, {
-      type: RPC_TYPE.REQUEST_LOCK
-    , term: self._currentTerm
-    , key: key
-    , ttl: Date.now() + opts.duration
-    , nonce: sameNonce
-    })
+    sendRequestToLeader()
   }
   else {
     self._emitter.on('leaderElected', sendRequestToLeader)
@@ -455,29 +547,47 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
             return
           }
 
-          self._emitter.removeListener('leaderElected', sendRequestToLeader)
-          self._emitter.removeListener('committed', grantOnCommitted)
-          clearTimeout(timeoutHandle)
-
           resolve({
             key: entry.data.key
           , nonce: entry.data.nonce
           })
+          cleanup()
+        }
+      , failOnReject = function _failOnReject (nonce) {
+          if (nonce !== sameNonce) {
+            return
+          }
+
+          reject(new Error('Another process is holding on to the lock right now'))
+          cleanup()
+        }
+      , failOnTimeout = function _failOnTimeout () {
+          self._channel.send(self._leader, {
+            type: RPC_TYPE.REQUEST_UNLOCK
+          , term: self._currentTerm
+          , key: key
+          , nonce: sameNonce
+          })
+
+          reject(new Error('Timed out before acquiring the lock'))
+          cleanup()
+        }
+      , cleanup = function _cleanup () {
+          self._emitter.removeListener('leaderElected', sendRequestToLeader)
+          self._emitter.removeListener('committed', grantOnCommitted)
+          self._emitter.removeListener('lockRejected', failOnReject)
+          clearTimeout(timeoutHandle)
         }
       , timeoutHandle
 
     // And wait for acknowledgement. Once we commit the entry,
     // we can grant the lock.
     self._emitter.on('committed', grantOnCommitted)
+    self._emitter.on('lockRejected', failOnReject)
 
     // If we time out before the lock is granted
     // remove the event handler and reject
-    timeoutHandle = setTimeout(function onGrantTimeout () {
-      self._emitter.removeListener('committed', grantOnCommitted)
-      self._emitter.removeListener('leaderElected', sendRequestToLeader)
-
-      reject(new Error('Timed out before acquiring the lock'))
-    }, opts.maxWait)
+    timeoutHandle = setTimeout(failOnTimeout, opts.maxWait)
   })
 }
 
@@ -485,9 +595,10 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
   var self = this
     , sameNonce = lock.nonce
     , sendRequestToLeader
+    , UNLOCK_TIMEOUT = 5000
 
   sendRequestToLeader = once(function sendRequestToLeader () {
-    self._channel.send(self.leader, {
+    self._channel.send(self._leader, {
       type: RPC_TYPE.REQUEST_UNLOCK
     , term: self._currentTerm
     , key: lock.key
@@ -497,13 +608,9 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
-    self._log.push({
-      term: self._currentTerm
-    , data: {
-        key: lock.key
-      , nonce: lock.nonce
-      , ttl: -1
-      }
+    self._unlockIfPossible({
+      key: lock.key
+    , nonce: lock.nonce
     })
   }
   else if (self._state === STATES.FOLLOWER && self._leader != null) {
@@ -514,8 +621,7 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
   }
 
   return new Promise(function (resolve, reject) {
-    var UNLOCK_TIMEOUT = 5000
-      , ackOnCommitted = function _ackOnCommitted (entry) {
+    var ackOnCommitted = function _ackOnCommitted (entry) {
           // A ttl > 0 is a lock acquisition and should be ignored
           if (entry.data.nonce !== sameNonce || entry.data.ttl > 0) {
             return
@@ -540,6 +646,19 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
       reject(new Error('Timed out before unlocking'))
     }, UNLOCK_TIMEOUT)
   })
+}
+
+LeaderStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) {
+  if (entry.data.ttl < 0) {
+    this._lockMap[entry.data.key] = null
+  }
+  else {
+    this._lockMap[entry.data.key] = {
+      nonce: entry.data.nonce
+    , ttl: entry.data.ttl
+    , isProvisionalLock: false
+    }
+  }
 }
 
 LeaderStrategy.prototype._close = function _close () {

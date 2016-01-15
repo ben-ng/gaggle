@@ -13,9 +13,9 @@ test('raft strategy - the leader can lock and unlock', function (t) {
     , Channel = require('../../../channels/redis-channel')
     , CHAN = 'leaderElectionTestChannel'
     , CLUSTER_SIZE = 5
-    , POLLING_INTERVAL = 10
-    , CONSENSUS_TIMEOUT = 5000
-    , LOCK_TIMEOUT = 1000
+    , POLLING_INTERVAL = 100
+    , CONSENSUS_TIMEOUT = 10000
+    , LOCK_TIMEOUT = 3000
     , testStart = Date.now()
     , cluster = []
     , tempId
@@ -87,6 +87,16 @@ test('raft strategy - the leader can lock and unlock', function (t) {
       })
     })
     .finally(function () {
+
+      /*
+      _.each(cluster, function (node) {
+        console.error(node.id + (node._state === 'LEADER' ? ' (leader)' : '') +
+          ' commitIndex: ' + node._commitIndex +
+          ' lastApplied: ' + node._lastApplied +
+          ' log:\n' + node._log.map(e => '\t' + JSON.stringify(e)).join('\n') + '\n')
+      })
+      */
+
       Promise.map(cluster, function (node) {
         return node.close()
       })
@@ -102,9 +112,9 @@ test('raft strategy - a follower can lock and unlock', function (t) {
     , Channel = require('../../../channels/redis-channel')
     , CHAN = 'leaderElectionTestChannel'
     , CLUSTER_SIZE = 5
-    , POLLING_INTERVAL = 10
-    , CONSENSUS_TIMEOUT = 5000
-    , LOCK_TIMEOUT = 1000
+    , POLLING_INTERVAL = 100
+    , CONSENSUS_TIMEOUT = 10000
+    , LOCK_TIMEOUT = 3000
     , testStart = Date.now()
     , cluster = []
     , tempId
@@ -177,15 +187,6 @@ test('raft strategy - a follower can lock and unlock', function (t) {
     })
     .finally(function () {
 
-      /*
-      _.each(cluster, function (node) {
-        console.error(node.id + (node._state === 'LEADER' ? ' (leader)' : '') +
-          ' commitIndex: ' + node._commitIndex +
-          ' lastApplied: ' + node._lastApplied +
-          ' log:\n' + node._log.map(e => '\t' + JSON.stringify(e)).join('\n') + '\n')
-      })
-      */
-
       Promise.map(cluster, function (node) {
         return node.close()
       })
@@ -201,7 +202,7 @@ test('raft strategy - locks are queued until a leader is elected', function (t) 
     , Channel = require('../../../channels/redis-channel')
     , CHAN = 'leaderElectionTestChannel'
     , CLUSTER_SIZE = 5
-    , LOCK_TIMEOUT = 2000
+    , LOCK_TIMEOUT = 3000
     , cluster = []
     , tempId
     , tempChannel
