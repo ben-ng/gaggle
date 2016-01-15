@@ -7,6 +7,16 @@ var Strategy = require('../../../strategies/redis-strategy')
   , _ = require('lodash')
   , uuid = require('uuid')
 
+test('redis strategy - fails when no options are given', function (t) {
+  t.throws(function () {
+    /*eslint-disable no-unused-vars*/
+    var c = new Strategy()
+    /*eslint-enable no-unused-vars*/
+  }, /Invalid options/, 'Should throw if missing options')
+
+  t.end()
+})
+
 test('redis strategy - acquisition times out', function (t) {
   var a = new Strategy({id: uuid.v4()})
     , b = new Strategy({id: uuid.v4()})

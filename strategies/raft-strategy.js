@@ -44,7 +44,7 @@ function LeaderStrategy (opts) {
         })
       , channel: Joi.object()
       , id: Joi.string()
-      }).requiredKeys('strategyOptions', 'strategyOptions.clusterSize'), {
+      }).requiredKeys('channel', 'strategyOptions', 'strategyOptions.clusterSize'), {
         convert: false
       })
     , electMin
