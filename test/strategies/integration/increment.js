@@ -16,10 +16,9 @@ var Promise = require('bluebird')
 
 Promise.promisifyAll(redis.RedisClient.prototype)
 
-function testStrategy (createStrategy, _cb) {
+function testStrategy (createStrategy, incrementCount, _cb) {
   // Test parameters
-  var incrementCount = 100
-    , valueKey = 'gaggleAtomicIncrementTestValue'
+  var valueKey = 'gaggleAtomicIncrementTestValue'
     , lockKey = 'gaggleAtomicIncrementTestLock'
   // Test state
     , r = redis.createClient()
@@ -115,7 +114,7 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
 
   testStrategy(function () {
     return new Strategy({id: uuid.v4()})
-  }, function (err) {
+  }, 100, function (err) {
     t.ok(err, 'There should be an error')
 
     if (err != null) {
@@ -143,7 +142,7 @@ test('atomic increment - Redis', function (t) {
     // Gives us coverage for both default and explicit init
     return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
-  , function (err) {
+  , 100, function (err) {
     t.equal(err, undefined, 'unexpected error: ' + err)
 
     t.end()
@@ -172,7 +171,7 @@ test('atomic increment - Raft', function (t) {
 
     return strat
   }
-  , function (err) {
+  , 20, function (err) {
     t.equal(err, undefined, 'unexpected error: ' + err)
 
     t.end()
