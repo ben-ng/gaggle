@@ -4,6 +4,7 @@ var StrategyInterface = require('./strategy-interface')
   , Promise = require('bluebird')
   , _ = require('lodash')
   , uuid = require('uuid')
+  , once = require('once')
   , EventEmitter = require('events').EventEmitter
   , prettifyJoiError = require('../helpers/prettify-joi-error')
   , STATES = {
@@ -202,7 +203,6 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
 
   var self = this
     , conflictedAt = -1
-    , maxOfEntries
 
   self._resetElectionTimeout()
 
@@ -412,6 +412,17 @@ LeaderStrategy.prototype._beginElection = function _beginElection () {
 LeaderStrategy.prototype._lock = function _lock (key, opts) {
   var self = this
     , sameNonce = self.id + '_' + uuid.v4()
+    , sendRequestToLeader
+
+  sendRequestToLeader = once(function sendRequestToLeader () {
+    self._channel.send(self.leader, {
+      type: RPC_TYPE.REQUEST_LOCK
+    , term: self._currentTerm
+    , key: key
+    , ttl: Date.now() + opts.duration
+    , nonce: sameNonce
+    })
+  })
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
@@ -433,6 +444,9 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
     , nonce: sameNonce
     })
   }
+  else {
+    self._emitter.on('leaderElected', sendRequestToLeader)
+  }
 
   return new Promise(function (resolve, reject) {
     var grantOnCommitted = function _grantOnCommitted (entry) {
@@ -441,6 +455,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
             return
           }
 
+          self._emitter.removeListener('leaderElected', sendRequestToLeader)
           self._emitter.removeListener('committed', grantOnCommitted)
           clearTimeout(timeoutHandle)
 
@@ -459,6 +474,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
     // remove the event handler and reject
     timeoutHandle = setTimeout(function onGrantTimeout () {
       self._emitter.removeListener('committed', grantOnCommitted)
+      self._emitter.removeListener('leaderElected', sendRequestToLeader)
 
       reject(new Error('Timed out before acquiring the lock'))
     }, opts.maxWait)
@@ -468,6 +484,16 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
 LeaderStrategy.prototype._unlock = function _unlock (lock) {
   var self = this
     , sameNonce = lock.nonce
+    , sendRequestToLeader
+
+  sendRequestToLeader = once(function sendRequestToLeader () {
+    self._channel.send(self.leader, {
+      type: RPC_TYPE.REQUEST_UNLOCK
+    , term: self._currentTerm
+    , key: lock.key
+    , nonce: sameNonce
+    })
+  })
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
@@ -481,12 +507,10 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
     })
   }
   else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    self._channel.send(self.leader, {
-      type: RPC_TYPE.REQUEST_UNLOCK
-    , term: self._currentTerm
-    , key: lock.key
-    , nonce: sameNonce
-    })
+    sendRequestToLeader()
+  }
+  else {
+    self._emitter.on('leaderElected', sendRequestToLeader)
   }
 
   return new Promise(function (resolve, reject) {

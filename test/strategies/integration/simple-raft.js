@@ -22,6 +22,8 @@ test('raft strategy - the leader can lock and unlock', function (t) {
     , tempChannel
     , hasReachedLeaderConsensus
 
+  t.plan(4)
+
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
       , leaders = _(cluster).filter(function (node) {
@@ -83,12 +85,6 @@ test('raft strategy - the leader can lock and unlock', function (t) {
       .then(function () {
         t.pass('Should release the lock')
       })
-      .catch(function (err) {
-        t.ifError(err, 'Should release the lock')
-      })
-    })
-    .catch(function (err) {
-      t.ifError(err, 'Should acquire the lock')
     })
     .finally(function () {
       Promise.map(cluster, function (node) {
@@ -96,8 +92,6 @@ test('raft strategy - the leader can lock and unlock', function (t) {
       })
       .then(function () {
         t.pass('Cleanly closed the strategy')
-
-        t.end()
       })
     })
   })
@@ -116,6 +110,8 @@ test('raft strategy - a follower can lock and unlock', function (t) {
     , tempId
     , tempChannel
     , hasReachedLeaderConsensus
+
+  t.plan(4)
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
@@ -178,12 +174,6 @@ test('raft strategy - a follower can lock and unlock', function (t) {
       .then(function () {
         t.pass('Should release the lock')
       })
-      .catch(function (err) {
-        t.ifError(err, 'Should release the lock')
-      })
-    })
-    .catch(function (err) {
-      t.ifError(err, 'Should acquire the lock')
     })
     .finally(function () {
 
@@ -201,9 +191,65 @@ test('raft strategy - a follower can lock and unlock', function (t) {
       })
       .then(function () {
         t.pass('Cleanly closed the strategy')
-
-        t.end()
       })
     })
   })
+})
+
+test('raft strategy - locks are queued until a leader is elected', function (t) {
+  var Strategy = require('../../../strategies/raft-strategy')
+    , Channel = require('../../../channels/redis-channel')
+    , CHAN = 'leaderElectionTestChannel'
+    , CLUSTER_SIZE = 5
+    , LOCK_TIMEOUT = 2000
+    , cluster = []
+    , tempId
+    , tempChannel
+    , randomNode
+
+  t.plan(3)
+
+  for (var i=0; i<CLUSTER_SIZE; ++i) {
+    tempId = uuid.v4()
+    tempChannel = new Channel({
+      id: tempId
+    , channelOptions: {
+        redisChannel: CHAN
+      }
+    // , logFunction: console.error
+    })
+
+    cluster.push(new Strategy({
+      id: tempId
+    , channel: tempChannel
+    , strategyOptions: {
+        clusterSize: CLUSTER_SIZE
+      }
+    }))
+  }
+
+  randomNode = cluster[_.random(0, CLUSTER_SIZE - 1)]
+
+  randomNode.lock('foobar', {
+    duration: 2000
+  , maxWait: LOCK_TIMEOUT
+  })
+  .then(function (lock) {
+    t.pass('Should acquire the lock')
+
+    return randomNode.unlock(lock)
+    .then(function () {
+      t.pass('Should release the lock')
+    })
+  })
+  .finally(function () {
+
+    Promise.map(cluster, function (node) {
+      return node.close()
+    })
+    .then(function () {
+      t.pass('Cleanly closed the strategy')
+    })
+  })
+
 })
