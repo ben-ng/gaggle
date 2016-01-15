@@ -143,7 +143,7 @@ test('atomic increment - Redis', function (t) {
     return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
   , 100, function (err) {
-    t.equal(err, undefined, 'unexpected error: ' + err)
+    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
 
     t.end()
   })
@@ -172,7 +172,7 @@ test('atomic increment - Raft', function (t) {
     return strat
   }
   , 20, function (err) {
-    t.equal(err, undefined, 'unexpected error: ' + err)
+    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
 
     t.end()
   })
