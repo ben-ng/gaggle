@@ -17,7 +17,6 @@ var StrategyInterface = require('./strategy-interface')
     , APPEND_ENTRIES: 'APPEND_ENTRIES'
     , APPEND_ENTRIES_REPLY: 'APPEND_ENTRIES_REPLY'
     , REQUEST_LOCK: 'REQUEST_LOCK'
-    , REQUEST_LOCK_REPLY: 'REQUEST_LOCK_REPLY'
     , REQUEST_UNLOCK: 'REQUEST_UNLOCK'
     , REQUEST_UNLOCK_REPLY: 'REQUEST_UNLOCK_REPLY'
     }
@@ -193,17 +192,17 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
   }
 
   // All nodes should commit entries between lastApplied and commitIndex
-  for (i=Math.max(0, self._lastApplied), ii=self._commitIndex; i<=ii; ++i) {
+  for (i=self._lastApplied + 1, ii=self._commitIndex; i<=ii; ++i) {
     self._emitter.emit('committed', self._log[i])
+    self._lastApplied = i
   }
-
-  self._lastApplied = self._commitIndex
 }
 
 LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId, data) {
 
   var self = this
     , conflictedAt = -1
+    , maxOfEntries
 
   self._resetElectionTimeout()
 
@@ -281,6 +280,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     break
 
     case RPC_TYPE.APPEND_ENTRIES:
+
     // This is how you lose an election
     if (data.term >= self._currentTerm && self._state !== STATES.LEADER) {
       self._state = STATES.FOLLOWER
@@ -340,7 +340,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
 
     // 5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
     if (data.leaderCommit > self._commitIndex) {
-      self._commitIndex = Math.min(data.leaderCommit, Math.max.apply(null, _.pluck(data.entries, 'index')))
+      self._commitIndex = Math.min(data.leaderCommit, self._log.length - 1)
     }
 
     self._channel.send(originNodeId, {
