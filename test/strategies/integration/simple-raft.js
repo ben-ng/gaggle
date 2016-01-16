@@ -153,8 +153,8 @@ test('raft strategy - a follower can lock and unlock', function (t) {
 })
 
 test('raft strategy - locks are queued until a leader is elected', function (t) {
-  var LOCK_TIMEOUT = 10000
-    , CLUSTER_SIZE = 5
+  var LOCK_TIMEOUT = 5000
+    , CLUSTER_SIZE = 2
     , cluster = createCluster(CLUSTER_SIZE)
     , randomNode
 
@@ -175,7 +175,6 @@ test('raft strategy - locks are queued until a leader is elected', function (t) 
     })
   })
   .finally(function () {
-
     Promise.map(cluster, function (node) {
       return node.close()
     })

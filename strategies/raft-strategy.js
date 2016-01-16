@@ -507,34 +507,46 @@ LeaderStrategy.prototype._beginElection = function _beginElection () {
 LeaderStrategy.prototype._lock = function _lock (key, opts) {
   var self = this
     , sameNonce = self.id + '_' + uuid.v4()
-    , sendRequestToLeader
+    , performRequest
 
-  sendRequestToLeader = once(function sendRequestToLeader () {
-    self._channel.send(self._leader, {
-      type: RPC_TYPE.REQUEST_LOCK
-    , term: self._currentTerm
-    , key: key
-    , duration: opts.duration
-    , maxWait: opts.maxWait
-    , nonce: sameNonce
-    })
+  /**
+  * This odd pattern is because there is a possibility that
+  * we were elected the leader after the leaderElected event
+  * fires. So we wait until its time to perform the request
+  * to decide if we need to delegate to the leader, or perform
+  * the logic ourselves
+  */
+  performRequest = once(function performRequest () {
+    if (self._state === STATES.LEADER) {
+      // Append to the log...
+      self._lockIfPossible({
+        key: key
+      , nonce: sameNonce
+      , duration: opts.duration
+      , maxWait: opts.maxWait
+      , requester: self.id
+      })
+    }
+    else {
+      self._channel.send(self._leader, {
+        type: RPC_TYPE.REQUEST_LOCK
+      , term: self._currentTerm
+      , key: key
+      , duration: opts.duration
+      , maxWait: opts.maxWait
+      , nonce: sameNonce
+      })
+    }
   })
 
   if (self._state === STATES.LEADER) {
-    // Append to the log...
-    self._lockIfPossible({
-      key: key
-    , nonce: sameNonce
-    , duration: opts.duration
-    , maxWait: opts.maxWait
-    , requester: self.id
-    })
+    performRequest()
   }
   else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    sendRequestToLeader()
+    performRequest()
   }
   else {
-    self._emitter.on('leaderElected', sendRequestToLeader)
+    self._emitter.once('leaderElected', performRequest)
   }
 
   return new Promise(function (resolve, reject) {
@@ -570,7 +582,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
           cleanup()
         }
       , cleanup = function _cleanup () {
-          self._emitter.removeListener('leaderElected', sendRequestToLeader)
+          self._emitter.removeListener('leaderElected', performRequest)
           self._emitter.removeListener('committed', grantOnCommitted)
           self._emitter.removeListener('lockRejected', failOnReject)
           clearTimeout(timeoutHandle)
