@@ -343,25 +343,26 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     break
 
     case RPC_TYPE.REQUEST_VOTE:
-    if (data.term < self._currentTerm) {
-      self._channel.send(originNodeId, {
-        type: RPC_TYPE.REQUEST_VOTE_REPLY
-      , term: self._currentTerm
-      , voteGranted: false
-      })
-      return
+    // Do not combine these conditions, its intentionally written this way so that the
+    // code coverage tool can do a thorough analysis
+    if (data.term >= self._currentTerm) {
+      if ((self._votedFor == null || self._votedFor === data.candidateId) &&
+        (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length - 1)) {
+        self._votedFor = data.candidateId
+        self._channel.send(data.candidateId, {
+          type: RPC_TYPE.REQUEST_VOTE_REPLY
+        , term: self._currentTerm
+        , voteGranted: true
+        })
+        return
+      }
     }
 
-    if ((self._votedFor == null || self._votedFor === data.candidateId) &&
-      (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length - 1)) {
-      self._votedFor = data.candidateId
-      self._channel.send(data.candidateId, {
-        type: RPC_TYPE.REQUEST_VOTE_REPLY
-      , term: self._currentTerm
-      , voteGranted: true
-      })
-      return
-    }
+    self._channel.send(originNodeId, {
+      type: RPC_TYPE.REQUEST_VOTE_REPLY
+    , term: self._currentTerm
+    , voteGranted: false
+    })
     break
 
     case RPC_TYPE.REQUEST_VOTE_REPLY:
