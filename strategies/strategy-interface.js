@@ -1,5 +1,4 @@
-var uuid = require('uuid')
-  , Promise = require('bluebird')
+var Promise = require('bluebird')
   , Joi = require('joi')
   , prettifyJoiError = require('../helpers/prettify-joi-error')
 
@@ -12,7 +11,7 @@ var uuid = require('uuid')
 *
 * Implementors should use the following protected methods:
 *   _createPromise
-*   _log
+*   _logFunction
 *
 * Strategy consumers should use the public interface:
 *   lock
@@ -24,14 +23,16 @@ function StrategyInterface (opts) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
     logFunction: Joi.func().default(function noop () {})
   , strategyOptions: Joi.object()
-  }))
+  , channel: Joi.object()
+  , id: Joi.string()
+  }).requiredKeys('id'))
 
   if (validatedOptions.error != null) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
 
-  this.id = uuid.v4()
-  this._log = validatedOptions.value.logFunction
+  this.id = validatedOptions.value.id
+  this._logFunction = validatedOptions.value.logFunction
   this._closed = false
 }
 

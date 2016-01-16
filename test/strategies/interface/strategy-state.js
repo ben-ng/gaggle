@@ -1,8 +1,9 @@
 var test = require('tape')
+  , uuid = require('uuid')
   , Strategy = require('../../../strategies/noop-strategy')
 
 test('Rejects when called after closed', function (t) {
-  var s = new Strategy()
+  var s = new Strategy({id: uuid.v4()})
     , expectation = 'Error: This instance has been closed'
 
   t.plan(2)

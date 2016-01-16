@@ -22,6 +22,7 @@ function RedisStrategy (opts) {
         strategyOptions: Joi.object().keys({
           redisConnectionString: Joi.string()
         })
+      , id: Joi.string()
       }), {
         convert: false
       })
@@ -37,7 +38,7 @@ function RedisStrategy (opts) {
   connString = _.get(validatedOptions, 'value.strategyOptions.redisConnectionString')
   redisClient = connString != null ? redis.createClient(connString) : redis.createClient()
 
-  redisClient.on('error', this._log)
+  redisClient.on('error', this._logFunction)
 
   this._redis = redisClient
 }

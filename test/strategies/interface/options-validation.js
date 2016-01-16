@@ -1,6 +1,7 @@
 var test = require('tape')
   , NoopStrategy = require('../../../strategies/noop-strategy')
   , RedisStrategy = require('../../../strategies/redis-strategy')
+  , uuid = require('uuid')
 
 test('Throws when constructor options are invalid', function (t) {
   t.throws(function () {
@@ -23,6 +24,7 @@ test('Throws when redis constructor options are invalid', function (t) {
         strategyOptions: {
           redisConnectionString: false
         }
+      , id: uuid.v4()
       })
       /*eslint-enable no-unused-vars*/
     }
@@ -33,7 +35,7 @@ test('Throws when redis constructor options are invalid', function (t) {
 })
 
 test('Throws when lock options are invalid', function (t) {
-  var s = new NoopStrategy()
+  var s = new NoopStrategy({id: uuid.v4()})
 
   s.lock('dummy', {maxWait: 'should be number'})
   .catch(function (err) {
@@ -46,7 +48,7 @@ test('Throws when lock options are invalid', function (t) {
 })
 
 test('Throws when unlock argument is invalid', function (t) {
-  var s = new NoopStrategy()
+  var s = new NoopStrategy({id: uuid.v4()})
 
   s.unlock('should be a lock object')
   .catch(function (err) {

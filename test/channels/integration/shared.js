@@ -163,7 +163,7 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
     var previous = -1
-      , sequenceLength = 1000
+      , sequenceLength = 50
       , finish = _.after(function () {
           b.removeAllListeners()
           cleanup()
@@ -187,6 +187,7 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
 
 test(channelName + ' channel integration - test helper works', function (t) {
   openChannels(t, 1, function (a, cleanup) {
+    t.pass('the helper opens the channels')
     cleanup()
   })
 })

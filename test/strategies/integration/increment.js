@@ -10,27 +10,29 @@ var Promise = require('bluebird')
   , async = require('async')
   , redis = require('redis')
   , once = require('once')
+  , uuid = require('uuid')
+  , _ = require('lodash')
+  , CLUSTER_SIZE = 10
 
 Promise.promisifyAll(redis.RedisClient.prototype)
 
-function testStrategy (createStrategy, _cb) {
+function testStrategy (createStrategy, incrementCount, _cb) {
   // Test parameters
-  var incrementCount = 100
-    , gaggleCount = 10
-    , valueKey = 'gaggleAtomicIncrementTestValue'
+  var valueKey = 'gaggleAtomicIncrementTestValue'
     , lockKey = 'gaggleAtomicIncrementTestLock'
   // Test state
     , r = redis.createClient()
-    , expectedFinalValue = incrementCount * gaggleCount
+    , expectedFinalValue = incrementCount * CLUSTER_SIZE
     , i = 0
     , finishedGaggles = 0
     , gaggleFinished
+    , cluster = []
     , cb = once(_cb)
 
   gaggleFinished = function gaggleFinished () {
     finishedGaggles = finishedGaggles + 1
 
-    if (finishedGaggles === gaggleCount) {
+    if (finishedGaggles === CLUSTER_SIZE) {
       r.getAsync(valueKey)
       .then(function (val) {
         var actual = parseInt(val, 10)
@@ -50,6 +52,10 @@ function testStrategy (createStrategy, _cb) {
       .finally(function () {
         r.quit()
 
+        _.each(cluster, function (node) {
+          node.close()
+        })
+
         cb()
       })
     }
@@ -58,15 +64,21 @@ function testStrategy (createStrategy, _cb) {
   r.setAsync(valueKey, 0)
   r.delAsync(lockKey, 0)
   .then(function () {
-    for (i=0; i<gaggleCount; ++i) {
-    (function () {
+    for (i=0; i<CLUSTER_SIZE; ++i) {
+    (function (ii) {
       var incrementCounter = 0
         , g = createStrategy()
+
+      cluster.push(g)
 
       async.whilst(
         function () { return incrementCounter < incrementCount }
       , function (next) {
-          g.lock(lockKey)
+          // Correctness doesn't change when locks fail to be acquired
+          // we only care about behavior when locks are acquired
+          var ignoreResultAndKeepGoing = function () { return Promise.resolve() }
+
+          g.lock(lockKey, {maxWait: 5000, duration: 1000})
           // CRITICAL SECTION BEGIN
           .then(function (lock) {
             return r.getAsync(valueKey)
@@ -77,14 +89,18 @@ function testStrategy (createStrategy, _cb) {
             .then(function () {
               incrementCounter = incrementCounter + 1
               return g.unlock(lock)
+              .then(function () {
+                return Promise.resolve()
+              })
             })
+            .then(ignoreResultAndKeepGoing)
+            .catch(ignoreResultAndKeepGoing)
           })
-          .then(function () {
-            next()
-          })
+          .then(ignoreResultAndKeepGoing)
+          .catch(ignoreResultAndKeepGoing)
+          .finally(next)
         }
       , function () {
-          g.close()
           gaggleFinished()
         }
       )
@@ -97,8 +113,8 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
   var Strategy = require('../../../strategies/noop-strategy')
 
   testStrategy(function () {
-    return new Strategy()
-  }, function (err) {
+    return new Strategy({id: uuid.v4()})
+  }, 100, function (err) {
     t.ok(err, 'There should be an error')
 
     if (err != null) {
@@ -110,23 +126,53 @@ test('atomic increment test fails when mutual exclusion is faulty', function (t)
   })
 })
 
-test('atomic increment - redis', function (t) {
+test('atomic increment - Redis', function (t) {
   var Strategy = require('../../../strategies/redis-strategy')
     , counter = 0
     , explicitOptions = {
         strategyOptions: {
           redisConnectionString: 'redis://127.0.0.1'
         }
+      , id: uuid.v4()
       }
 
   testStrategy(function () {
     counter = counter + 1
 
     // Gives us coverage for both default and explicit init
-    return new Strategy(counter % 2 === 0 ? explicitOptions : null)
+    return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
-  , function (err) {
-    t.equal(err, undefined, 'unexpected error: ' + err)
+  , 100, function (err) {
+    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
+
+    t.end()
+  })
+})
+
+test.skip('atomic increment - Raft', function (t) {
+  var Strategy = require('../../../strategies/raft-strategy')
+    , Channel = require('../../../channels/redis-channel')
+
+  testStrategy(function () {
+    var id = uuid.v4()
+      , chan = new Channel({
+          id: id
+        , channelOptions: {
+            redisChannel: 'raftAtomicIncrement'
+          }
+        })
+      , strat = new Strategy({
+          id: id
+        , channel: chan
+        , strategyOptions: {
+            clusterSize: CLUSTER_SIZE
+          }
+        })
+
+    return strat
+  }
+  , 20, function (err) {
+    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
 
     t.end()
   })
