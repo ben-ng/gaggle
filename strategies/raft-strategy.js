@@ -125,9 +125,7 @@ function LeaderStrategy (opts) {
       })
     })
 
-    if (self._leaderHeartbeatInterval != null) {
-      clearInterval(self._leaderHeartbeatInterval)
-    }
+    clearInterval(self._leaderHeartbeatInterval)
 
     self._leaderHeartbeatInterval = setInterval(function () {
 
