@@ -58,6 +58,7 @@ test('redis strategy - nonce mismatch when unlocking', function (t) {
   .then(function (lock) {
     return a.unlock(_.extend({}, lock, {nonce: 'whoops'}))
   })
+  .catch(_.noop)
   .finally(function () {
     t.pass('Unlock did not reject because of the nonce mismatch')
 

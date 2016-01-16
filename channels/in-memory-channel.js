@@ -1,5 +1,6 @@
 var ChannelInterface = require('./channel-interface')
   , util = require('util')
+  , _ = require('lodash')
   , instanceMap = {}
 
 /**
@@ -11,10 +12,6 @@ var ChannelInterface = require('./channel-interface')
 function InMemoryChannel () {
   ChannelInterface.apply(this, Array.prototype.slice.call(arguments))
 
-  instanceMap[this.id] = {
-    connected: false
-  , instance: this
-  }
 }
 
 util.inherits(InMemoryChannel, ChannelInterface)
@@ -23,7 +20,7 @@ InMemoryChannel.prototype._connect = function _connect () {
   var self = this
 
   setImmediate(function () {
-    instanceMap[self.id].connected = true
+    instanceMap[self.id] = self
     self._connected()
   })
 }
@@ -32,25 +29,27 @@ InMemoryChannel.prototype._disconnect = function _disconnect () {
   var self = this
 
   setImmediate(function () {
-    instanceMap[self.id].connected = false
+    instanceMap[self.id] = null
     self._disconnected()
   })
 }
 
 InMemoryChannel.prototype._broadcast = function _broadcast (data) {
-  for (var instanceKey in instanceMap) {
-    if (instanceMap.hasOwnProperty(instanceKey)) {
-      this._send(instanceKey, data)
+  var self = this
+
+  _.each(instanceMap, function (instance, key) {
+    if (instance != null) {
+      self._send(key, data)
     }
-  }
+  })
 }
 
 InMemoryChannel.prototype._send = function _send (nodeId, data) {
   var self = this
 
   setImmediate(function () {
-    if (instanceMap[nodeId] != null && instanceMap[nodeId].connected === true) {
-      instanceMap[nodeId].instance._recieved(self.id, data)
+    if (instanceMap[nodeId] != null) {
+      instanceMap[nodeId]._recieved(self.id, data)
     }
   })
 }

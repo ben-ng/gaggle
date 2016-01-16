@@ -79,7 +79,7 @@ function LeaderStrategy (opts) {
 
   this._currentTerm = 0
   this._votedFor = null
-  this._log = []
+  this._log = [] // [{term: 1, data: {}}, ...]
   this._commitIndex = -1
   this._lastApplied = -1
 
