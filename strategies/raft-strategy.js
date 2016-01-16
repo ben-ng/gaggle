@@ -398,15 +398,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     // Reciever Implementation 1 & 2
     // p13
 
-    /*eslint-disable no-extra-parens*/
-    if (data.term < self._currentTerm ||                        // 1. reply false if term < currentTerm (section 3.3)
-      (
-        data.prevLogIndex > -1 &&                               // Don't do this if log is empty; it'll fail for the wrong reasons
-        (self._log[data.prevLogIndex] == null  ||               // 2. reply false if log doesn't contain an entry at prevLogIndex
-        self._log[data.prevLogIndex].term !== data.prevLogTerm) //    whose term matches prevLogTerm (section 3.5)
-      )
-      ) {
-    /*eslint-enable no-extra-parens*/
+    if (data.term < self._currentTerm) {                        // 1. reply false if term < currentTerm (section 3.3)
       self._channel.send(originNodeId, {
         type: RPC_TYPE.APPEND_ENTRIES_REPLY
       , term: self._currentTerm
@@ -415,6 +407,18 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
       return
     }
 
+    // This could be merged into the previous if statement, but then istanbul can't detect if tests have covered this branch
+    if (data.prevLogIndex > -1 &&                                  // Don't do this if log is empty; it'll fail for the wrong reasons
+        (self._log[data.prevLogIndex] == null  ||                  // 2. reply false if log doesn't contain an entry at prevLogIndex
+        self._log[data.prevLogIndex].term !== data.prevLogTerm)) { //    whose term matches prevLogTerm (section 3.5)
+
+        self._channel.send(originNodeId, {
+          type: RPC_TYPE.APPEND_ENTRIES_REPLY
+        , term: self._currentTerm
+        , success: false
+        })
+        return
+    }
 
     // 3. If an existing entry conflicts with a new one (same index but different terms),
     // delete the existing entry and all that follow it. (section 3.5)

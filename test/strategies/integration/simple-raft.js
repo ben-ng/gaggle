@@ -314,3 +314,63 @@ test('raft strategy - fails when append entries is recieved from earlier terms',
     })
   })
 })
+
+test('raft strategy - catches lagging followers up', function (t) {
+  var POLLING_INTERVAL = 100
+    , TEST_TIMEOUT = 10000
+
+  t.plan(7)
+
+  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'should not error')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    leader.lock('lock_a')
+    .then(function (lock) {
+      t.pass('acquires lock a')
+
+      return leader.unlock(lock)
+      .then(function () {
+        t.pass('releases lock a')
+      })
+    })
+    .then(function () {
+      return leader.lock('lock_b')
+    })
+    .then(function (lock) {
+      t.pass('acquires lock b')
+
+      return leader.unlock(lock)
+      .then(function () {
+        t.pass('releases lock b')
+      })
+    })
+    .then(function () {
+      var testStart = Date.now()
+        , originalLogLength = notTheLeader._log.length
+
+      // Remove entries from the follower, and wait until the leader catches it up
+      notTheLeader._log = []
+      notTheLeader._commitIndex = -1
+      notTheLeader._lastApplied = -1
+
+      async.whilst(function () {
+        return notTheLeader._log.length !== originalLogLength && Date.now() - testStart < TEST_TIMEOUT
+      }, function (next) {
+        setTimeout(next, POLLING_INTERVAL)
+      }, function () {
+        t.ok(notTheLeader._log.length, originalLogLength, 'The follower was caught up')
+
+        cleanup()
+        .then(function () {
+          t.pass('cleanly closed the strategy')
+        })
+      })
+    })
+  })
+})
