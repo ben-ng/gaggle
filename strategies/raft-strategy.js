@@ -111,6 +111,8 @@ function LeaderStrategy (opts) {
   }
 
   this._beginLeaderHeartbeat = function _beginLeaderHeartbeat () {
+    var sendHeartbeat
+
     // Send initial blank entry. Don't broadcast this, as we
     // do NOT want to recieve our own append entry message...
     _.each(self._votes, function (v, nodeId) {
@@ -127,8 +129,7 @@ function LeaderStrategy (opts) {
 
     clearInterval(self._leaderHeartbeatInterval)
 
-    self._leaderHeartbeatInterval = setInterval(function () {
-
+    sendHeartbeat = function sendHeartbeat () {
       _.each(self._votes, function (v, nodeId) {
         var entriesToSend = []
           , prevLogIndex = -1
@@ -162,7 +163,23 @@ function LeaderStrategy (opts) {
         , leaderCommit: self._commitIndex
         })
       })
-    }, heartbeatInterval)
+    }
+
+    self._leaderHeartbeatInterval = setInterval(sendHeartbeat, heartbeatInterval)
+
+    /**
+    * Allows lock requests to be handled faster IN THEORY
+    * but it seems to actually take twice as long under load, probably
+    * because of lots more message passing... making the heartbeat interval
+    * a small one turns out to be better.
+    */
+    /*
+    self._forceLeaderHeartbeat = function _forceLeaderHeartbeat () {
+      clearInterval(self._leaderHeartbeatInterval)
+      sendHeartbeat()
+      self._leaderHeartbeatInterval = setInterval(sendHeartbeat, heartbeatInterval)
+    }
+    */
   }
 
   this._onMessageRecieved = _.bind(this._onMessageRecieved, this)
@@ -224,7 +241,7 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       , lockMapEntry = self._lockMap[key]
 
     // If the state machine doesn't contain the key, or the lock has expired...
-    if (lockMapEntry == null || lockMapEntry.ttl < Date.now() && lockMapEntry.isProvisionalLock !== true) {
+    if (lockMapEntry == null || lockMapEntry.ttl < Date.now()) {
       ttl = Date.now() + duration
 
       self._log.push({
@@ -235,17 +252,12 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       })
 
       self._lockMap[key] = {
-        isProvisionalLock: true
-      , ttl: ttl
+        ttl: ttl
       , nonce: nonce
       }
 
-      self._channel.send(entry.requester, {
-        type: RPC_TYPE.REQUEST_LOCK_REPLY
-      , term: self._currentTerm
-      , nonce: nonce
-      , provisionalLockCreated: true
-      })
+      // Accelerates lock acquisition by achieving consensus earlier
+      // self._forceLeaderHeartbeat()
     }
     else {
       // Say no so that the follower doesn't waste time waiting
@@ -253,7 +265,6 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
         type: RPC_TYPE.REQUEST_LOCK_REPLY
       , term: self._currentTerm
       , nonce: nonce
-      , provisionalLockCreated: false
       })
     }
   }
@@ -277,6 +288,9 @@ LeaderStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) 
         , ttl: -1
         }
       })
+
+      // Accelerates unlocking by achieving consensus earlier
+      // self._forceLeaderHeartbeat()
     }
   }
 }
@@ -313,10 +327,9 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     }
     break
 
+    // A reply is a quick failure message
     case RPC_TYPE.REQUEST_LOCK_REPLY:
-      if (data.provisionalLockCreated !== true) {
-        self._emitter.emit('lockRejected', data.nonce)
-      }
+      self._emitter.emit('lockRejected', data.nonce)
     break
 
 
@@ -663,7 +676,6 @@ LeaderStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) 
     this._lockMap[entry.data.key] = {
       nonce: entry.data.nonce
     , ttl: entry.data.ttl
-    , isProvisionalLock: false
     }
   }
 }
