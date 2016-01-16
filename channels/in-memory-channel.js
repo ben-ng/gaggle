@@ -11,7 +11,6 @@ var ChannelInterface = require('./channel-interface')
 
 function InMemoryChannel () {
   ChannelInterface.apply(this, Array.prototype.slice.call(arguments))
-
 }
 
 util.inherits(InMemoryChannel, ChannelInterface)
@@ -19,19 +18,19 @@ util.inherits(InMemoryChannel, ChannelInterface)
 InMemoryChannel.prototype._connect = function _connect () {
   var self = this
 
-  setImmediate(function () {
+  setTimeout(function () {
     instanceMap[self.id] = self
     self._connected()
-  })
+  }, 0)
 }
 
 InMemoryChannel.prototype._disconnect = function _disconnect () {
   var self = this
 
-  setImmediate(function () {
+  setTimeout(function () {
     instanceMap[self.id] = null
     self._disconnected()
-  })
+  }, 0)
 }
 
 InMemoryChannel.prototype._broadcast = function _broadcast (data) {
@@ -47,11 +46,11 @@ InMemoryChannel.prototype._broadcast = function _broadcast (data) {
 InMemoryChannel.prototype._send = function _send (nodeId, data) {
   var self = this
 
-  setImmediate(function () {
+  setTimeout(function () {
     if (instanceMap[nodeId] != null) {
       instanceMap[nodeId]._recieved(self.id, data)
     }
-  })
+  }, 0)
 }
 
 module.exports = InMemoryChannel
