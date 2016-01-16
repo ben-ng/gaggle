@@ -7,12 +7,11 @@ var test = require('tape')
   , uuid = require('uuid')
   , _ = require('lodash')
   , Promise = require('bluebird')
+  , Strategy = require('../../../strategies/raft-strategy')
+  , Channel = require('../../../channels/in-memory-channel')
 
 test('raft strategy - the leader can lock and unlock', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
-    , CHAN = 'leaderElectionTestChannel'
-    , CLUSTER_SIZE = 5
+  var CLUSTER_SIZE = 5
     , POLLING_INTERVAL = 100
     , CONSENSUS_TIMEOUT = 10000
     , LOCK_TIMEOUT = 3000
@@ -47,10 +46,6 @@ test('raft strategy - the leader can lock and unlock', function (t) {
     tempId = uuid.v4()
     tempChannel = new Channel({
       id: tempId
-    , channelOptions: {
-        redisChannel: CHAN
-      }
-    // , logFunction: console.error
     })
 
     cluster.push(new Strategy({
@@ -108,10 +103,7 @@ test('raft strategy - the leader can lock and unlock', function (t) {
 })
 
 test('raft strategy - a follower can lock and unlock', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
-    , CHAN = 'leaderElectionTestChannel'
-    , CLUSTER_SIZE = 5
+  var CLUSTER_SIZE = 5
     , POLLING_INTERVAL = 100
     , CONSENSUS_TIMEOUT = 10000
     , LOCK_TIMEOUT = 3000
@@ -146,10 +138,6 @@ test('raft strategy - a follower can lock and unlock', function (t) {
     tempId = uuid.v4()
     tempChannel = new Channel({
       id: tempId
-    , channelOptions: {
-        redisChannel: CHAN
-      }
-    // , logFunction: console.error
     })
 
     cluster.push(new Strategy({
@@ -198,10 +186,7 @@ test('raft strategy - a follower can lock and unlock', function (t) {
 })
 
 test('raft strategy - locks are queued until a leader is elected', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
-    , CHAN = 'leaderElectionTestChannel'
-    , CLUSTER_SIZE = 5
+  var CLUSTER_SIZE = 5
     , LOCK_TIMEOUT = 3000
     , cluster = []
     , tempId
@@ -214,10 +199,6 @@ test('raft strategy - locks are queued until a leader is elected', function (t) 
     tempId = uuid.v4()
     tempChannel = new Channel({
       id: tempId
-    , channelOptions: {
-        redisChannel: CHAN
-      }
-    // , logFunction: console.error
     })
 
     cluster.push(new Strategy({

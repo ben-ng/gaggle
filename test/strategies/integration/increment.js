@@ -143,7 +143,7 @@ test('atomic increment - Redis', function (t) {
     return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
   , 100, function (err) {
-    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
+    t.ifError(err, 'There should be no error')
 
     t.end()
   })
@@ -151,15 +151,12 @@ test('atomic increment - Redis', function (t) {
 
 test.skip('atomic increment - Raft', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
+    , Channel = require('../../../channels/in-memory-channel')
 
   testStrategy(function () {
     var id = uuid.v4()
       , chan = new Channel({
           id: id
-        , channelOptions: {
-            redisChannel: 'raftAtomicIncrement'
-          }
         })
       , strat = new Strategy({
           id: id
@@ -172,7 +169,7 @@ test.skip('atomic increment - Raft', function (t) {
     return strat
   }
   , 20, function (err) {
-    t.equal(err, undefined, 'There should be no error (got ' + err + ')')
+    t.ifError(err, 'There should be no error')
 
     t.end()
   })
