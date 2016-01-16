@@ -14,9 +14,10 @@ Redis     | No           | Requires Redis to work, but processes can fail as loc
 
 ## Channels
 
-Channel | Options
-------- | -------
-Redis   | <ul><li>**String** redisChannel *required*</li><li>**String** redisConnectionString `redis://user:pass@host:port`</li></ul>
+Channel | Description                                 | Options
+------- | ------------------------------------------- | -------
+Memory  | Fastest, but only works in the same process | *None*
+Redis   | Fast, works across different machines       | <ul><li>**String** redisChannel *required*</li><li>**String** redisConnectionString `redis://user:pass@host:port`</li></ul>
 
 ## Examples
 
