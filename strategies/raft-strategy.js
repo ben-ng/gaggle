@@ -591,17 +591,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
 LeaderStrategy.prototype._unlock = function _unlock (lock) {
   var self = this
     , sameNonce = lock.nonce
-    , sendRequestToLeader
     , UNLOCK_TIMEOUT = 5000
-
-  sendRequestToLeader = once(function sendRequestToLeader () {
-    self._channel.send(self._leader, {
-      type: RPC_TYPE.REQUEST_UNLOCK
-    , term: self._currentTerm
-    , key: lock.key
-    , nonce: sameNonce
-    })
-  })
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
@@ -611,11 +601,19 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
     })
   }
   else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    sendRequestToLeader()
+    self._channel.send(self._leader, {
+      type: RPC_TYPE.REQUEST_UNLOCK
+    , term: self._currentTerm
+    , key: lock.key
+    , nonce: sameNonce
+    })
   }
-  else {
-    self._emitter.on('leaderElected', sendRequestToLeader)
-  }
+  /**
+  * We don't queue unlocks the same way that we queue locks because
+  * its so unlikely that the leader goes down in between a lock
+  * and unlock, and the unlock request happens precisely when
+  * the follower becomes a candidate.
+  */
 
   return new Promise(function (resolve, reject) {
     var ackOnCommitted = function _ackOnCommitted (entry) {

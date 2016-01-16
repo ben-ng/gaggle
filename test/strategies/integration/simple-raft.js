@@ -183,7 +183,6 @@ test('raft strategy - locks are queued until a leader is elected', function (t) 
       t.pass('cleanly closed the strategy')
     })
   })
-
 })
 
 /**
