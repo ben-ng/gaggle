@@ -95,6 +95,8 @@ test('re-elects a leader when a leader fails', function (t) {
     , tempChannel
     , hasReachedLeaderConsensus
 
+  t.plan(9)
+
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
       , leaders = _(cluster).filter(function (node) {
@@ -146,31 +148,43 @@ test('re-elects a leader when a leader fails', function (t) {
     t.ok(leaderId, 'A leader was elected, and all nodes are in consensus')
     t.ok(leader, 'The leader was found in the cluster')
 
-    _.remove(cluster, function (node) {
-      return node.id === leaderId
+    // We want to perform the check that sees if a candidate is at least as up to date as a
+    // follower before it grants a vote, so this creates some log entries for that to happen
+    leader.lock('lock_a')
+    .then(function (lock) {
+      t.pass('acquired lock a')
+
+      return leader.unlock(lock)
+      .then(function () {
+        t.pass('released lock a')
+      })
     })
-
-    t.ok(cluster.length < CLUSTER_SIZE, 'The elected leader was removed from the cluster')
-
-    leader.close()
     .then(function () {
-      t.pass('The elected leader has disconnected')
-      t.ok(!hasReachedLeaderConsensus(), 'Consensus has not been reached')
+      _.remove(cluster, function (node) {
+        return node.id === leaderId
+      })
 
-      testStart = Date.now()
-      async.whilst(function () {
-        return !hasReachedLeaderConsensus() && Date.now() - testStart < TIMEOUT
-      }, function (next) {
-        setTimeout(next, POLLING_INTERVAL)
-      }, function () {
-        t.ok(hasReachedLeaderConsensus(), 'A new leader was elected, and all nodes are in consensus')
+      t.ok(cluster.length < CLUSTER_SIZE, 'The elected leader was removed from the cluster')
 
-        Promise.map(cluster, function (node) {
-          return node.close()
-        })
-        .then(function () {
-          t.pass('Cleanly closed the strategy')
-          t.end()
+      leader.close()
+      .then(function () {
+        t.pass('The elected leader has disconnected')
+        t.ok(!hasReachedLeaderConsensus(), 'Consensus has not been reached')
+
+        testStart = Date.now()
+        async.whilst(function () {
+          return !hasReachedLeaderConsensus() && Date.now() - testStart < TIMEOUT
+        }, function (next) {
+          setTimeout(next, POLLING_INTERVAL)
+        }, function () {
+          t.ok(hasReachedLeaderConsensus(), 'A new leader was elected, and all nodes are in consensus')
+
+          Promise.map(cluster, function (node) {
+            return node.close()
+          })
+          .then(function () {
+            t.pass('Cleanly closed the strategy')
+          })
         })
       })
     })

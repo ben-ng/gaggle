@@ -353,7 +353,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     }
 
     if ((self._votedFor == null || self._votedFor === data.candidateId) &&
-      (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length)) {
+      (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length - 1)) {
       self._votedFor = data.candidateId
       self._channel.send(data.candidateId, {
         type: RPC_TYPE.REQUEST_VOTE_REPLY
