@@ -190,14 +190,11 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
 
     for (i=self._commitIndex + 1, ii=self._log.length; i<ii; ++i) {
       // Log entries must be from the current term
-      if (self._log[i].term !== self._currentTerm) {
-        continue
-      }
-
-      // There must be a majority of matchIndexes >= i
-      if (_.filter(self._matchIndex, function (matchIndex) {
-          return matchIndex >= i
-        }).length > Math.ceil(self._clusterSize/2)) {
+      if (self._log[i].term === self._currentTerm &&
+          // And there must be a majority of matchIndexes >= i
+          _.filter(self._matchIndex, function (matchIndex) {
+            return matchIndex >= i
+          }).length > Math.ceil(self._clusterSize/2)) {
         highestPossibleCommitIndex = i
       }
     }
