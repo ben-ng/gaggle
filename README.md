@@ -23,7 +23,7 @@ Redis   | Fast, works across different machines       | <ul><li>**String** redis
 
 ### Atomic Increment
 
-Multile processes are simultaneously trying to increment the same value in a database that only supports "GET" and "SET" commands. A situation like this might arise:
+Multiple processes are simultaneously trying to increment the same value in a database that only supports "GET" and "SET" commands. A situation like this might arise:
 
 ```
 Process A:
