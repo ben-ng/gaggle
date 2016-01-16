@@ -7,6 +7,7 @@
   },
   "scripts": {
     "test": "tape test/**/*.js | tap-spec",
+    "coverage": "nyc tape test/**/*.js --reporter=html && open -a \"Safari\" coverage/index.html",
     "test-ci": "nyc tape test/**/*.js && nyc report --reporter=text-lcov | coveralls",
     "tdd": "nodemon -x npm test"
   },
