@@ -283,3 +283,34 @@ test('raft strategy - votes no for candidates in earlier terms', function (t) {
     })
   })
 })
+
+test('raft strategy - fails when append entries is recieved from earlier terms', function (t) {
+  t.plan(3)
+
+  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+      , laterTerm
+
+    t.ifError(err, 'should not error')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    laterTerm = notTheLeader._currentTerm + 1
+
+    notTheLeader._currentTerm = laterTerm
+
+    leader._channel.on('recieved', function (originNodeId, msg) {
+      if (msg.type === Strategy._RPC_TYPE.APPEND_ENTRIES_REPLY &&
+          msg.term === laterTerm) {
+        t.strictEquals(msg.success, false, 'should respond with failure')
+
+        cleanup()
+        .then(function () {
+          t.pass('cleanly closed the strategy')
+        })
+      }
+    })
+  })
+})
