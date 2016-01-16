@@ -17,6 +17,21 @@ test('raft strategy - fails when no options are given', function (t) {
   t.end()
 })
 
+test('raft strategy - fails when invalid options are given', function (t) {
+  t.throws(function () {
+    /*eslint-disable no-unused-vars*/
+    var c = new Strategy({
+      id: uuid.v4()
+    , strategyOptions: {
+        heartbeatInterval: 'well this should be a number'
+      }
+    })
+    /*eslint-enable no-unused-vars*/
+  }, /Invalid options/, 'Should throw if invalid options')
+
+  t.end()
+})
+
 test('raft strategy - acquisition times out', function (t) {
   var a_id = uuid.v4()
     , a = new Strategy({

@@ -187,6 +187,7 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
 
 test(channelName + ' channel integration - test helper works', function (t) {
   openChannels(t, 1, function (a, cleanup) {
+    t.pass('the helper opens the channels')
     cleanup()
   })
 })

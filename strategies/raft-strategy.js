@@ -57,6 +57,7 @@ function LeaderStrategy (opts) {
   if (validatedOptions.error != null) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
+
   // For convenience
   electMin = validatedOptions.value.strategyOptions.electionTimeout.min
   electMax = validatedOptions.value.strategyOptions.electionTimeout.max

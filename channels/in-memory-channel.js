@@ -49,7 +49,7 @@ InMemoryChannel.prototype._send = function _send (nodeId, data) {
   var self = this
 
   setImmediate(function () {
-    if (instanceMap[nodeId].connected === true) {
+    if (instanceMap[nodeId] != null && instanceMap[nodeId].connected === true) {
       instanceMap[nodeId].instance._recieved(self.id, data)
     }
   })

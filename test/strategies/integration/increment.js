@@ -149,7 +149,7 @@ test('atomic increment - Redis', function (t) {
   })
 })
 
-test('atomic increment - Raft', function (t) {
+test.skip('atomic increment - Raft', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/redis-channel')
 
