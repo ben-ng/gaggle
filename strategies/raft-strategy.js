@@ -247,14 +247,15 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       , provisionalLockCreated: true
       })
     }
-  }
-  else {
-    self._channel.send(entry.requester, {
-      type: RPC_TYPE.REQUEST_LOCK_REPLY
-    , term: self._currentTerm
-    , nonce: nonce
-    , provisionalLockCreated: false
-    })
+    else {
+      // Say no so that the follower doesn't waste time waiting
+      self._channel.send(entry.requester, {
+        type: RPC_TYPE.REQUEST_LOCK_REPLY
+      , term: self._currentTerm
+      , nonce: nonce
+      , provisionalLockCreated: false
+      })
+    }
   }
 }
 
