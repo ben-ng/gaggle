@@ -347,7 +347,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
       self._channel.send(originNodeId, {
         type: RPC_TYPE.REQUEST_VOTE_REPLY
       , term: self._currentTerm
-      , votedGranted: false
+      , voteGranted: false
       })
       return
     }
@@ -358,7 +358,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
       self._channel.send(data.candidateId, {
         type: RPC_TYPE.REQUEST_VOTE_REPLY
       , term: self._currentTerm
-      , votedGranted: true
+      , voteGranted: true
       })
       return
     }
@@ -367,7 +367,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
     case RPC_TYPE.REQUEST_VOTE_REPLY:
     // broadcasts reach ourselves, so we'll actually vote for ourselves here
     if (data.term === self._currentTerm &&
-        data.votedGranted === true) {
+        data.voteGranted === true) {
 
       // Keep collecting votes because that's how we discover what process ids are
       // in the system
@@ -700,4 +700,5 @@ LeaderStrategy.prototype._close = function _close () {
 module.exports = LeaderStrategy
 
 module.exports._STATES = _.cloneDeep(STATES)
+module.exports._RPC_TYPE = _.cloneDeep(RPC_TYPE)
 

@@ -250,3 +250,36 @@ test('raft strategy - log replication induction step', function (t) {
     })
   })
 })
+
+test('raft strategy - votes no for candidates in earlier terms', function (t) {
+  t.plan(3)
+
+  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'should not error')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    leader._channel.on('recieved', function (originNodeId, msg) {
+      if (msg.type === Strategy._RPC_TYPE.REQUEST_VOTE_REPLY) {
+        t.strictEquals(msg.voteGranted, false, 'should not grant votes to nodes in earlier terms')
+
+        cleanup()
+        .then(function () {
+          t.pass('cleanly closed the strategy')
+        })
+      }
+    })
+
+    leader._channel.send(notTheLeader.id, {
+      type: Strategy._RPC_TYPE.REQUEST_VOTE
+    , term: notTheLeader._currentTerm - 1
+    , candidateId: leader.id
+    , lastLogIndex: -1
+    , lastLogTerm: -1
+    })
+  })
+})
