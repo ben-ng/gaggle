@@ -32,7 +32,7 @@ test('raft strategy - fails when invalid options are given', function (t) {
   t.end()
 })
 
-test('raft strategy - acquisition times out', function (t) {
+test('raft strategy - acquisition times out or fails early', function (t) {
   var a_id = uuid.v4()
     , a = new Strategy({
         id: a_id
@@ -71,13 +71,15 @@ test('raft strategy - acquisition times out', function (t) {
     })
     .catch(function (err) {
       sawExpectedErr = true
-      t.equal(err.toString(), 'Error: Timed out before acquiring the lock', 'Should time out with expected error')
+      t.ok(['Error: Timed out before acquiring the lock'
+        , 'Error: Another process is holding on to the lock right now'
+        ].indexOf(err.toString()) > -1 , 'Should either time out or fail early')
     })
     .then(function () {
       return a.unlock(lock)
     })
     .finally(function () {
-      t.ok(sawExpectedErr, 'Second acquisition should time out')
+      t.ok(sawExpectedErr, 'Second acquisition should fail')
 
       b.close()
       a.close()
