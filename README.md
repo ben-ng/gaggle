@@ -1,8 +1,53 @@
-# Gaggle
-
-[![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) [![Coverage Status](https://img.shields.io/coveralls/ben-ng/gaggle/master.svg)](https://coveralls.io/github/ben-ng/gaggle?branch=master) [![npm version](https://img.shields.io/npm/v/gaggle.svg)](https://www.npmjs.com/package/gaggle)
+# Gaggle [![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) [![Coverage Status](https://img.shields.io/coveralls/ben-ng/gaggle/master.svg)](https://coveralls.io/github/ben-ng/gaggle?branch=master) [![npm version](https://img.shields.io/npm/v/gaggle.svg)](https://www.npmjs.com/package/gaggle)
 
 Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) for mutual exclusion, so you can choose your own tradeoffs.
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Contents**
+
+- [Performance](#performance)
+  - [Worst Case: Frequently Blocking Operations](#worst-case-frequently-blocking-operations)
+  - [Best Case: Rarely Blocking Operations](#best-case-rarely-blocking-operations)
+- [Strategies](#strategies)
+- [Channels](#channels)
+- [Examples](#examples)
+  - [Atomic Increments](#atomic-increments)
+    - [Sample Code: Performing Atomic Increments (Callbacks)](#sample-code-performing-atomic-increments-callbacks)
+    - [Sample Code: Performing Atomic Increments (Promises)](#sample-code-performing-atomic-increments-promises)
+- [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Performance
+
+### Worst Case: Frequently Blocking Operations
+
+This simulates a worst-case scenario where 10 processes are competing for the same lock.
+
+```
+Redis x 1.22 ops/sec ±11.58% (11 runs sampled)
+Raft (Accelerated) x 0.16 ops/sec ±0.58% (10 runs sampled)
+Raft (Vanilla) x 0.06 ops/sec ±21.80% (5 runs sampled)
+
+      Raft (Vanilla) | ############################################################ | 160.03 ms per operation
+  Raft (Accelerated) | #######################                                      | 61.97 ms per operation
+               Redis | ###                                                          | 8.2 ms per operation
+```
+
+### Best Case: Rarely Blocking Operations
+
+This simulates a best-case scenario where 10 processes never block each other.
+
+```
+Redis x 7.08 ops/sec ±5.36% (38 runs sampled)
+Raft (Accelerated) x 0.73 ops/sec ±19.25% (13 runs sampled)
+Raft (Vanilla) x 0.21 ops/sec ±0.99% (6 runs sampled)
+
+      Raft (Vanilla) | ############################################################ | 48.77 ms per operation
+  Raft (Accelerated) | #################                                            | 13.78 ms per operation
+               Redis | ##                                                           | 1.41 ms per operation
+```
 
 ## Strategies
 
@@ -22,7 +67,7 @@ Redis   | <ul><li>**String** redisChannel *required*</li><li>**String** redisCon
 
 ## Examples
 
-### Atomic Increment
+### Atomic Increments
 
 Multiple processes are simultaneously trying to increment the same value in a database that only supports "GET" and "SET" commands. A situation like this might arise:
 
@@ -41,7 +86,7 @@ Expected: x = 2
 
 This is known as the "lost update" problem. You can solve this problem with Gaggle, which supports both callbacks and promises.
 
-#### Example: Performing Atomic Increments (Callbacks)
+#### Sample Code: Performing Atomic Increments (Callbacks)
 
 ```js
 
@@ -71,7 +116,7 @@ g.lock('myLock', {    // You can create multiple locks by naming them
 
 ```
 
-#### Example: Performing Atomic Increments (Promises)
+#### Sample Code: Performing Atomic Increments (Promises)
 
 ```js
 

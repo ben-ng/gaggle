@@ -39,7 +39,7 @@ function LeaderStrategy (opts) {
           electionTimeout: Joi.object().keys({
             min: Joi.number().min(0)
           , max: Joi.number().min(Joi.ref('strategyOptions.electionTimeout.min'))
-          }).default({min: 500, max: 1000})
+          }).default({min: 300, max: 500})
         , heartbeatInterval: Joi.number().min(0).default(50)
         , clusterSize: Joi.number().min(1)
         , unlockTimeout: Joi.number().min(0).default(5000)
