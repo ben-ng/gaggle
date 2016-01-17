@@ -42,6 +42,7 @@ function LeaderStrategy (opts) {
           }).default({min: 500, max: 1000})
         , heartbeatInterval: Joi.number().min(0).default(50)
         , clusterSize: Joi.number().min(1)
+        , unlockTimeout: Joi.number().min(0).default(5000)
         })
       , channel: Joi.object()
       , id: Joi.string()
@@ -62,6 +63,7 @@ function LeaderStrategy (opts) {
   electMin = validatedOptions.value.strategyOptions.electionTimeout.min
   electMax = validatedOptions.value.strategyOptions.electionTimeout.max
   this._clusterSize = validatedOptions.value.strategyOptions.clusterSize
+  this._unlockTimeout = validatedOptions.value.strategyOptions.unlockTimeout
   heartbeatInterval = validatedOptions.value.strategyOptions.heartbeatInterval
 
   opts.channel.connect()
@@ -570,23 +572,19 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
   return new Promise(function (resolve, reject) {
     var grantOnCommitted = function _grantOnCommitted (entry) {
           // A ttl < 0 is an unlock request and should be ignored
-          if (entry.data.nonce !== sameNonce || entry.data.ttl < 0) {
-            return
+          if (entry.data.nonce === sameNonce && entry.data.ttl > 0) {
+            resolve({
+              key: entry.data.key
+            , nonce: entry.data.nonce
+            })
+            cleanup()
           }
-
-          resolve({
-            key: entry.data.key
-          , nonce: entry.data.nonce
-          })
-          cleanup()
         }
       , failOnReject = function _failOnReject (nonce) {
-          if (nonce !== sameNonce) {
-            return
+          if (nonce === sameNonce) {
+            reject(new Error('Another process is holding on to the lock right now'))
+            cleanup()
           }
-
-          reject(new Error('Another process is holding on to the lock right now'))
-          cleanup()
         }
       , failOnTimeout = function _failOnTimeout () {
           self._channel.send(self._leader, {
@@ -621,7 +619,6 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
 LeaderStrategy.prototype._unlock = function _unlock (lock) {
   var self = this
     , sameNonce = lock.nonce
-    , UNLOCK_TIMEOUT = 5000
 
   if (self._state === STATES.LEADER) {
     // Append to the log...
@@ -648,14 +645,12 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
   return new Promise(function (resolve, reject) {
     var ackOnCommitted = function _ackOnCommitted (entry) {
           // A ttl > 0 is a lock acquisition and should be ignored
-          if (entry.data.nonce !== sameNonce || entry.data.ttl > 0) {
-            return
+          if (entry.data.nonce === sameNonce && entry.data.ttl < 0) {
+            self._emitter.removeListener('committed', ackOnCommitted)
+            clearTimeout(timeoutHandle)
+
+            resolve()
           }
-
-          self._emitter.removeListener('committed', ackOnCommitted)
-          clearTimeout(timeoutHandle)
-
-          resolve()
         }
       , timeoutHandle
 
@@ -669,7 +664,7 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
       self._emitter.removeListener('committed', ackOnCommitted)
 
       reject(new Error('Timed out before unlocking'))
-    }, UNLOCK_TIMEOUT)
+    }, self._unlockTimeout)
   })
 }
 
