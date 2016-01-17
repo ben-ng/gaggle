@@ -78,7 +78,7 @@ function testStrategy (createStrategy, incrementCount, _cb) {
           // we only care about behavior when locks are acquired
           var ignoreResultAndKeepGoing = function () { return Promise.resolve() }
 
-          g.lock(lockKey, {maxWait: 5000, duration: 1000})
+          g.lock(lockKey, {maxWait: 5000, duration: 2000})
           // CRITICAL SECTION BEGIN
           .then(function (lock) {
             return r.getAsync(valueKey)
