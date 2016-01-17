@@ -57,7 +57,7 @@ g.lock('myLock', {    // You can create multiple locks by naming them
   // automatically expire if the db.get or db.set commands failed.
 
   // Begin critical section
-  db.get('x', function (err, val) {
+  db.get('x', (err, val) => {
 
     // Err handling omitted for brevity
     db.set('x', val + 1, function (err) {
