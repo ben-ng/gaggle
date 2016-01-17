@@ -9,8 +9,9 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 - [Performance](#performance)
   - [Worst Case: Frequently Blocking Operations](#worst-case-frequently-blocking-operations)
   - [Best Case: Rarely Blocking Operations](#best-case-rarely-blocking-operations)
-- [Strategies](#strategies)
-- [Channels](#channels)
+- [Usage](#usage)
+  - [Strategies](#strategies)
+  - [Channels](#channels)
 - [Examples](#examples)
   - [Atomic Increments](#atomic-increments)
     - [Sample Code: Performing Atomic Increments (Callbacks)](#sample-code-performing-atomic-increments-callbacks)
@@ -26,13 +27,13 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 This simulates a worst-case scenario where 10 processes are competing for the same lock.
 
 ```
-Redis x 1.22 ops/sec ±11.58% (11 runs sampled)
-Raft (Accelerated) x 0.16 ops/sec ±0.58% (10 runs sampled)
-Raft (Vanilla) x 0.06 ops/sec ±21.80% (5 runs sampled)
+Redis x 1.44 ops/sec ±12.12% (11 runs sampled)
+Raft (Accelerated) x 0.16 ops/sec ±1.82% (10 runs sampled)
+Raft (Vanilla) x 0.07 ops/sec ±0.77% (5 runs sampled)
 
-      Raft (Vanilla) | ############################################################ | 160.03 ms per operation
-  Raft (Accelerated) | #######################                                      | 61.97 ms per operation
-               Redis | ###                                                          | 8.2 ms per operation
+      Raft (Vanilla) | ######################################## | 147.31 ms/operation
+  Raft (Accelerated) | #################                        | 61.04 ms/operation
+               Redis | ##                                       | 6.97 ms/operation
 ```
 
 ### Best Case: Rarely Blocking Operations
@@ -40,16 +41,18 @@ Raft (Vanilla) x 0.06 ops/sec ±21.80% (5 runs sampled)
 This simulates a best-case scenario where 10 processes never block each other.
 
 ```
-Redis x 7.08 ops/sec ±5.36% (38 runs sampled)
-Raft (Accelerated) x 0.73 ops/sec ±19.25% (13 runs sampled)
-Raft (Vanilla) x 0.21 ops/sec ±0.99% (6 runs sampled)
+Redis x 7.11 ops/sec ±6.43% (39 runs sampled)
+Raft (Accelerated) x 0.82 ops/sec ±18.74% (13 runs sampled)
+Raft (Vanilla) x 0.21 ops/sec ±0.98% (6 runs sampled)
 
-      Raft (Vanilla) | ############################################################ | 48.77 ms per operation
-  Raft (Accelerated) | #################                                            | 13.78 ms per operation
-               Redis | ##                                                           | 1.41 ms per operation
+      Raft (Vanilla) | ######################################## | 47.86 ms/operation
+  Raft (Accelerated) | ##########                               | 12.24 ms/operation
+               Redis | #                                        | 1.41 ms/operation
 ```
 
-## Strategies
+## Usage
+
+### Strategies
 
 Distributed strategies require the use of a [Channel](#channels)
 
@@ -58,7 +61,7 @@ Strategy  | Distributed? | Failure Tolerance                                    
 Redis     | No           | Redis can't fail, but any number of processes can fail as locks automatically expire                    | Uses `SET EX NX`
 Raft      | Yes          | Less than half of all processes can fail, or be out of contact because of network partitions.           | Uses [Raft](http://raft.github.io)
 
-## Channels
+### Channels
 
 Channel | Options                                                                                                                     | Description
 ------- | --------------------------------------------------------------------------------------------------------------------------- | -----------

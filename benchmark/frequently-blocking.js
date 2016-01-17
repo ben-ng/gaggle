@@ -89,6 +89,9 @@ suite
   }
 })
 // add listeners
+.on('start', function () {
+  console.log('Frequently Blocking')
+})
 .on('cycle', function (event) {
   console.log(String(event.target))
 })
@@ -100,10 +103,11 @@ suite
     data[bench.name] = _.round(1000 / bench.hz / totalIncrements, 2)
   })
 
-  console.log('\n\n')
+  console.log('')
 
   console.log(bars(data, {
     sort: true
+  , width: 40
   }))
 })
 // run async

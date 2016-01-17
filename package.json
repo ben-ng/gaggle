@@ -11,7 +11,8 @@
     "test-ci": "nyc tape test/**/*.js && nyc report --reporter=text-lcov | coveralls",
     "tdd": "nodemon -x npm test",
     "doctoc": "doctoc README.md",
-    "prepublish": "in-publish && npm run doctoc || not-in-publish"
+    "prepublish": "in-publish && npm run doctoc || not-in-publish",
+    "benchmark": "node benchmark/frequently-blocking && node benchmark/rarely-blocking"
   },
   "repository": {
     "type": "git",
