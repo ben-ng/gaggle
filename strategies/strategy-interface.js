@@ -1,5 +1,6 @@
 var Promise = require('bluebird')
   , Joi = require('joi')
+  , _ = require('lodash')
   , prettifyJoiError = require('../helpers/prettify-joi-error')
 
 /*
@@ -36,58 +37,83 @@ function StrategyInterface (opts) {
   this._closed = false
 }
 
-StrategyInterface.prototype.lock = function lock (key, opts) {
+StrategyInterface.prototype.lock = function lock (key, opts, cb) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
-    duration: Joi.number().min(0).default(10000)
-  , maxWait: Joi.number().min(0).default(5000)
-  }), {
-    convert: false
-  })
+        duration: Joi.number().min(0).default(10000)
+      , maxWait: Joi.number().min(0).default(5000)
+      }), {
+        convert: false
+      })
+    , p
 
   if (this._closed !== false) {
-    return Promise.reject(new Error('This instance has been closed'))
+    p = Promise.reject(new Error('This instance has been closed'))
   }
   else if (validatedOptions.error != null) {
-    return Promise.reject(prettifyJoiError(validatedOptions.error))
+    p = Promise.reject(prettifyJoiError(validatedOptions.error))
   }
   else if (typeof this._lock === 'function') {
-    return this._lock(key, validatedOptions.value)
+    p = this._lock(key, validatedOptions.value)
   }
   else {
-    return Promise.reject(new Error('unimplemented method _lock is required by the Strategy interface'))
+    p = Promise.reject(new Error('unimplemented method _lock is required by the Strategy interface'))
+  }
+
+  if (typeof cb === 'function') {
+    p.then(_.curry(cb, 2)(null)).catch(cb)
+  }
+  else {
+    return p
   }
 }
 
-StrategyInterface.prototype.unlock = function unlock (lock) {
+StrategyInterface.prototype.unlock = function unlock (lock, cb) {
   var validatedLock = Joi.validate(lock, Joi.object().keys({
         key: Joi.string()
       , nonce: Joi.string()
       }).requiredKeys('key', 'nonce'), {
         convert: false
       })
+    , p
 
   if (this._closed !== false) {
-    return Promise.reject(new Error('This instance has been closed'))
+    p = Promise.reject(new Error('This instance has been closed'))
   }
   else if (validatedLock.error != null) {
-    return Promise.reject(prettifyJoiError(validatedLock.error))
+    p = Promise.reject(prettifyJoiError(validatedLock.error))
   }
   else if (typeof this._unlock === 'function') {
-    return this._unlock(validatedLock.value)
+    p = this._unlock(validatedLock.value)
   }
   else {
-    return Promise.reject(new Error('unimplemented method _unlock is required by the Strategy interface'))
+    p = Promise.reject(new Error('unimplemented method _unlock is required by the Strategy interface'))
+  }
+
+  if (typeof cb === 'function') {
+    p.then(_.curry(cb, 2)(null)).catch(cb)
+  }
+  else {
+    return p
   }
 }
 
-StrategyInterface.prototype.close = function close () {
+StrategyInterface.prototype.close = function close (cb) {
+  var p
+
   this._closed = true
 
   if (typeof this._close === 'function') {
-    return this._close()
+    p = this._close()
   }
   else {
-    return Promise.reject(new Error('unimplemented method _close is required by the Strategy interface'))
+    p = Promise.reject(new Error('unimplemented method _close is required by the Strategy interface'))
+  }
+
+  if (typeof cb === 'function') {
+    p.then(_.curry(cb, 2)(null)).catch(cb)
+  }
+  else {
+    return p
   }
 }
 

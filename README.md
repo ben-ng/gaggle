@@ -39,11 +39,43 @@ Result: x = 1
 Expected: x = 2
 ```
 
-This is known as the "lost update" problem. You can solve this problem with Gaggle like this:
+This is known as the "lost update" problem. You can solve this problem with Gaggle, which supports both callbacks and promises.
+
+#### Example: Performing Atomic Increments (Callbacks)
 
 ```js
 
-var Gaggle = require('gaggle').Redis// Gaggle behaves the same way with any strategy & channel
+var Gaggle = require('gaggle').Redis
+  , g = new Gaggle()
+  , db = require('your-hypothetical-database')
+
+g.lock('myLock', {    // You can create multiple locks by naming them
+  duration: 1000      // Hold the lock for no longer than 1 second
+, maxWait: 5000       // Wait for no longer than 5s to acquire the lock
+}, (err, lock) => {
+  // Handle any errors. No need to release the lock as it will
+  // automatically expire if the db.get or db.set commands failed.
+
+  // Begin critical section
+  db.get('x', function (err, val) {
+
+    // Err handling omitted for brevity
+    db.set('x', val + 1, function (err) {
+
+      g.unlock('myLock', function (err) {
+        // End critican section
+      })
+    })
+  })
+})
+
+```
+
+#### Example: Performing Atomic Increments (Promises)
+
+```js
+
+var Gaggle = require('gaggle').Redis
   , g = new Gaggle()
   , db = require('your-hypothetical-database')
 
