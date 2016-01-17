@@ -1,6 +1,6 @@
 {
   "name": "gaggle",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Mutual exclusion made easy",
   "directories": {
     "test": "test"
