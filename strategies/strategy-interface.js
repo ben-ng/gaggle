@@ -37,13 +37,14 @@ function StrategyInterface (opts) {
   this._closed = false
 }
 
-StrategyInterface.prototype.lock = function lock (key, opts, cb) {
-  var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
+StrategyInterface.prototype.lock = function lock (key, opts, _cb) {
+  var validatedOptions = Joi.validate(typeof opts === 'object' ? opts : {}, Joi.object().keys({
         duration: Joi.number().min(0).default(10000)
       , maxWait: Joi.number().min(0).default(5000)
       }), {
         convert: false
       })
+    , cb = typeof opts === 'function' ? opts : _cb
     , p
 
   if (this._closed !== false) {

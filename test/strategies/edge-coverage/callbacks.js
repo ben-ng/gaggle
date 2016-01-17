@@ -11,9 +11,7 @@ test('callback api', function (t) {
 
   t.plan(3)
 
-  a.lock('foo', {
-    duration: 10000
-  }, function (err, lock) {
+  a.lock('foo', function (err, lock) {
     t.ifError(err, 'should not error when locking')
 
     a.unlock(lock, function (err) {
