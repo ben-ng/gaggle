@@ -139,6 +139,7 @@ test('atomic increment - Redis', function (t) {
       , id: uuid.v4()
       }
     , testStart = Date.now()
+    , INCREMENTS_PER_PROCESS = 50
 
   testStrategy(function () {
     counter = counter + 1
@@ -146,10 +147,10 @@ test('atomic increment - Redis', function (t) {
     // Gives us coverage for both default and explicit init
     return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
-  , 20, function (err) {
+  , INCREMENTS_PER_PROCESS, function (err) {
     t.ifError(err, 'There should be no error')
 
-    t.pass('Test completed in ' + _.round(Date.now() - testStart, 2) + 's')
+    t.pass('Average lock time: ' + _.round((Date.now() - testStart) / (CLUSTER_SIZE * INCREMENTS_PER_PROCESS), 2) + 'ms')
 
     t.end()
   })
@@ -159,6 +160,7 @@ test('atomic increment - Raft (Accelerated)', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/in-memory-channel')
     , testStart = Date.now()
+    , INCREMENTS_PER_PROCESS = 20
 
   testStrategy(function () {
     var id = uuid.v4()
@@ -176,10 +178,10 @@ test('atomic increment - Raft (Accelerated)', function (t) {
 
     return strat
   }
-  , 20, function (err) {
+  , INCREMENTS_PER_PROCESS, function (err) {
     t.ifError(err, 'There should be no error')
 
-    t.pass('Test completed in ' + _.round(Date.now() - testStart, 2) + 's')
+    t.pass('Average lock time: ' + _.round((Date.now() - testStart) / (CLUSTER_SIZE * INCREMENTS_PER_PROCESS), 2) + 'ms')
 
     t.end()
   })
@@ -189,6 +191,7 @@ test('atomic increment - Raft (Vanilla)', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/in-memory-channel')
     , testStart = Date.now()
+    , INCREMENTS_PER_PROCESS = 20
 
   testStrategy(function () {
     var id = uuid.v4()
@@ -205,10 +208,10 @@ test('atomic increment - Raft (Vanilla)', function (t) {
 
     return strat
   }
-  , 20, function (err) {
+  , INCREMENTS_PER_PROCESS, function (err) {
     t.ifError(err, 'There should be no error')
 
-    t.pass('Test completed in ' + (Date.now() - testStart) + 'ms')
+    t.pass('Average lock time: ' + _.round((Date.now() - testStart) / (CLUSTER_SIZE * INCREMENTS_PER_PROCESS), 2) + 'ms')
 
     t.end()
   })
