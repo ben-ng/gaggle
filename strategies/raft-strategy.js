@@ -574,7 +574,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
   }
 
   return new Promise(function (resolve, reject) {
-    var grantOnCommitted = once(function _grantOnCommitted (entry) {
+    var grantOnCommitted = function _grantOnCommitted (entry) {
           // A ttl < 0 is an unlock request and should be ignored
           if (entry.data.nonce === sameNonce && entry.data.ttl > 0) {
             resolve({
@@ -583,13 +583,13 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
             })
             cleanup()
           }
-        })
-      , failOnReject = once(function _failOnReject (nonce) {
+        }
+      , failOnReject = function _failOnReject (nonce) {
           if (nonce === sameNonce) {
             reject(new Error('Another process is holding on to the lock right now'))
             cleanup()
           }
-        })
+        }
       , failOnTimeout = function _failOnTimeout () {
           self._channel.send(self._leader, {
             type: RPC_TYPE.REQUEST_UNLOCK
@@ -647,7 +647,7 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
   */
 
   return new Promise(function (resolve, reject) {
-    var ackOnCommitted = once(function _ackOnCommitted (entry) {
+    var ackOnCommitted = function _ackOnCommitted (entry) {
           // A ttl > 0 is a lock acquisition and should be ignored
           if (entry.data.nonce === sameNonce && entry.data.ttl < 0) {
             self._emitter.removeListener('committed', ackOnCommitted)
@@ -655,7 +655,7 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
 
             resolve()
           }
-        })
+        }
       , timeoutHandle
 
     // And wait for acknowledgement. Once we commit the entry,
