@@ -22,33 +22,27 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 
 ## Performance
 
-### Worst Case: Frequently Blocking Operations
-
-This simulates a worst-case scenario where 10 processes are competing for the same lock.
+Each test performs an asynchronous operation that takes approximately 70ms a hundred times. The "sequential" test is a single process performing all one hundred operations itself, in series. The "Worst Case" tests are ten processes trying to acquire the same lock before performing the task. The "Best Case" tests are ten processes acquiring different locks before performing the task.
 
 ```
-Redis x 1.58 ops/sec ±7.73% (13 runs sampled)
-Raft (Accelerated) x 0.45 ops/sec ±1.77% (12 runs sampled)
-Raft (Vanilla) x 0.06 ops/sec ±14.22% (5 runs sampled)
+Sequential - Baseline x 0.15 ops/sec ±1.12% (5 runs sampled)
+Redis - Worst Case x 0.13 ops/sec ±2.99% (5 runs sampled)
+Gaggle - Worst Case x 0.12 ops/sec ±0.91% (5 runs sampled)
+Raft - Worst Case x 0.05 ops/sec ±11.94% (5 runs sampled)
+Redis - Best Case x 0.66 ops/sec ±2.69% (6 runs sampled)
+Gaggle - Best Case x 0.42 ops/sec ±4.01% (6 runs sampled)
+Raft - Best Case x 0.13 ops/sec ±45.01% (5 runs sampled)
 
-      Raft (Vanilla) | ######################################## | 159.22 ms/operation
-  Raft (Accelerated) | ######                                   | 22.19 ms/operation
-               Redis | ##                                       | 6.33 ms/operation
+      Raft - Worst Case | ######################################## | 210.45 ms/operation
+    Gaggle - Worst Case | ################                         | 84.17 ms/operation
+       Raft - Best Case | ###############                          | 79.9 ms/operation
+     Redis - Worst Case | ###############                          | 76.5 ms/operation
+  Sequential - Baseline | #############                            | 68.02 ms/operation
+     Gaggle - Best Case | #####                                    | 23.97 ms/operation
+      Redis - Best Case | ###                                      | 15.13 ms/operation
 ```
 
-### Best Case: Rarely Blocking Operations
-
-This simulates a best-case scenario where 10 processes never block each other.
-
-```
-Redis x 7.71 ops/sec ±5.93% (41 runs sampled)
-Raft (Accelerated) x 1.06 ops/sec ±2.91% (15 runs sampled)
-Raft (Vanilla) x 0.21 ops/sec ±0.71% (6 runs sampled)
-
-      Raft (Vanilla) | ######################################## | 48.08 ms/operation
-  Raft (Accelerated) | ########                                 | 9.42 ms/operation
-               Redis | #                                        | 1.3 ms/operation
-```
+Note that ms/operation can be much lower than the ~70ms each task takes because multiple processes are working on tasks at the same time.
 
 ## Usage
 

@@ -55,8 +55,8 @@ test('atomic increment - Redis', function (t) {
   })
 })
 
-test('atomic increment - Raft (Accelerated)', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
+test('atomic increment - Gaggle', function (t) {
+  var Strategy = require('../../../strategies/gaggle-strategy')
     , Channel = require('../../../channels/in-memory-channel')
     , testStart = Date.now()
     , INCREMENTS_PER_PROCESS = 20
@@ -71,7 +71,6 @@ test('atomic increment - Raft (Accelerated)', function (t) {
         , channel: chan
         , strategyOptions: {
             clusterSize: CLUSTER_SIZE
-          , forceHeartbeat: true
           }
         })
 
@@ -86,7 +85,7 @@ test('atomic increment - Raft (Accelerated)', function (t) {
   })
 })
 
-test('atomic increment - Raft (Vanilla)', function (t) {
+test('atomic increment - Raft', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/in-memory-channel')
     , testStart = Date.now()

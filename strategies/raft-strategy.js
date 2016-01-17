@@ -32,7 +32,7 @@ var StrategyInterface = require('./strategy-interface')
 * for mutual exclusion. The leader election is inspired by Raft's.
 */
 
-function LeaderStrategy (opts) {
+function RaftStrategy (opts) {
   var self = this
     , validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
         strategyOptions: Joi.object().keys({
@@ -43,7 +43,6 @@ function LeaderStrategy (opts) {
         , heartbeatInterval: Joi.number().min(0).default(50)
         , clusterSize: Joi.number().min(1)
         , unlockTimeout: Joi.number().min(0).default(5000)
-        , forceHeartbeat: Joi.boolean().default(false)
         })
       , channel: Joi.object()
       , id: Joi.string()
@@ -65,7 +64,6 @@ function LeaderStrategy (opts) {
   electMax = validatedOptions.value.strategyOptions.electionTimeout.max
   this._clusterSize = validatedOptions.value.strategyOptions.clusterSize
   this._unlockTimeout = validatedOptions.value.strategyOptions.unlockTimeout
-  this._shouldForceHeartbeat = validatedOptions.value.strategyOptions.forceHeartbeat
   heartbeatInterval = validatedOptions.value.strategyOptions.heartbeatInterval
 
   opts.channel.connect()
@@ -184,9 +182,9 @@ function LeaderStrategy (opts) {
   this._resetElectionTimeout()
 }
 
-util.inherits(LeaderStrategy, StrategyInterface)
+util.inherits(RaftStrategy, StrategyInterface)
 
-LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (originNodeId, data) {
+RaftStrategy.prototype._onMessageRecieved = function _onMessageRecieved (originNodeId, data) {
   var self = this
     , i
     , ii
@@ -215,9 +213,7 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
     if (highestPossibleCommitIndex > self._commitIndex) {
       self._commitIndex = highestPossibleCommitIndex
 
-      if (self._shouldForceHeartbeat) {
-        self._forceHeartbeat()
-      }
+      self._emitter.emit('dirty')
     }
   }
 
@@ -228,7 +224,7 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
   }
 }
 
-LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
+RaftStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
   var self = this
     , key = entry.key
     , duration = entry.duration
@@ -241,7 +237,8 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       , lockMapEntry = self._lockMap[key]
 
     // If the state machine doesn't contain the key, or the lock has expired...
-    if (lockMapEntry == null || lockMapEntry.ttl < Date.now()) {
+    // The 300 is a safety buffer that I'll probably change...
+    if (lockMapEntry == null || lockMapEntry.ttl < Date.now() - 300) {
       ttl = Date.now() + duration
 
       self._log.push({
@@ -257,9 +254,7 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       }
 
       // May accelerate unlocking by achieving consensus earlier
-      if (self._shouldForceHeartbeat) {
-        self._forceHeartbeat()
-      }
+      self._emitter.emit('dirty')
     }
     else {
       // Say no so that the follower doesn't waste time waiting
@@ -272,7 +267,7 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
   }
 }
 
-LeaderStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) {
+RaftStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) {
   var self = this
 
   if (self._state === STATES.LEADER) {
@@ -292,14 +287,12 @@ LeaderStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) 
       })
 
       // May accelerate unlocking by achieving consensus earlier
-      if (self._shouldForceHeartbeat) {
-        self._forceHeartbeat()
-      }
+      self._emitter.emit('dirty')
     }
   }
 }
 
-LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId, data) {
+RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, data) {
 
   var self = this
     , conflictedAt = -1
@@ -488,7 +481,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
   }
 }
 
-LeaderStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout () {
+RaftStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout () {
   var self = this
     , timeout = self._generateRandomElectionTimeout()
 
@@ -502,7 +495,7 @@ LeaderStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout 
   }, timeout)
 }
 
-LeaderStrategy.prototype._beginElection = function _beginElection () {
+RaftStrategy.prototype._beginElection = function _beginElection () {
   // To begin an election, a follower increments its current term and transitions to
   // candidate state. It then votes for itself and issues RequestVote RPCs in parallel
   // to each of the other servers in the cluster.
@@ -526,7 +519,7 @@ LeaderStrategy.prototype._beginElection = function _beginElection () {
   })
 }
 
-LeaderStrategy.prototype._lock = function _lock (key, opts) {
+RaftStrategy.prototype._lock = function _lock (key, opts) {
   var self = this
     , sameNonce = self.id + '_' + uuid.v4()
     , performRequest
@@ -618,7 +611,7 @@ LeaderStrategy.prototype._lock = function _lock (key, opts) {
   })
 }
 
-LeaderStrategy.prototype._unlock = function _unlock (lock) {
+RaftStrategy.prototype._unlock = function _unlock (lock) {
   var self = this
     , sameNonce = lock.nonce
 
@@ -670,7 +663,7 @@ LeaderStrategy.prototype._unlock = function _unlock (lock) {
   })
 }
 
-LeaderStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) {
+RaftStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) {
   if (entry.data.ttl < 0) {
     this._lockMap[entry.data.key] = null
   }
@@ -682,7 +675,7 @@ LeaderStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) 
   }
 }
 
-LeaderStrategy.prototype._close = function _close () {
+RaftStrategy.prototype._close = function _close () {
   var self = this
 
   this._channel.removeListener('recieved', this._onMessageRecieved)
@@ -699,7 +692,7 @@ LeaderStrategy.prototype._close = function _close () {
   })
 }
 
-module.exports = LeaderStrategy
+module.exports = RaftStrategy
 
 module.exports._STATES = _.cloneDeep(STATES)
 module.exports._RPC_TYPE = _.cloneDeep(RPC_TYPE)
