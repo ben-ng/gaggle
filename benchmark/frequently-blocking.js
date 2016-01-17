@@ -12,6 +12,7 @@ var Benchmark = require('benchmark')
 suite
 .add('Redis', {
   defer: true
+, delay: 2
 , fn: function (deferred) {
     var Strategy = require('../strategies/redis-strategy')
 
@@ -33,6 +34,7 @@ suite
 })
 .add('Raft (Accelerated)', {
   defer: true
+, delay: 2
 , minSamples: 10
 , fn: function (deferred) {
     var Strategy = require('../strategies/raft-strategy')
@@ -62,6 +64,7 @@ suite
 })
 .add('Raft (Vanilla)', {
   defer: true
+, delay: 2
 , fn: function (deferred) {
     var Strategy = require('../strategies/raft-strategy')
       , Channel = require('../channels/in-memory-channel')

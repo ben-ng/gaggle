@@ -171,12 +171,6 @@ function LeaderStrategy (opts) {
 
     self._leaderHeartbeatInterval = setInterval(sendHeartbeat, heartbeatInterval)
 
-    /**
-    * Allows lock requests to be handled faster IN THEORY
-    * but it seems to actually take twice as long under load, probably
-    * because of lots more message passing... making the heartbeat interval
-    * a small one turns out to be better.
-    */
     self._forceHeartbeat = function _forceHeartbeat () {
       clearInterval(self._leaderHeartbeatInterval)
       sendHeartbeat()
@@ -218,8 +212,12 @@ LeaderStrategy.prototype._onMessageRecieved = function _onMessageRecieved (origi
       }
     }
 
-    if (highestPossibleCommitIndex > -1) {
+    if (highestPossibleCommitIndex > self._commitIndex) {
       self._commitIndex = highestPossibleCommitIndex
+
+      if (self._shouldForceHeartbeat) {
+        self._forceHeartbeat()
+      }
     }
   }
 
