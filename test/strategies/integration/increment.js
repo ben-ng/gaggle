@@ -98,7 +98,10 @@ function testStrategy (createStrategy, incrementCount, _cb) {
           })
           .then(ignoreResultAndKeepGoing)
           .catch(ignoreResultAndKeepGoing)
-          .finally(next)
+          // Breaks the promise chain to **significantly** reduce memory usage
+          .finally(function () {
+            setTimeout(next, 0)
+          })
         }
       , function () {
           gaggleFinished()
