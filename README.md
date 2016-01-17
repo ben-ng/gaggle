@@ -63,7 +63,7 @@ g.lock('myLock', {    // You can create multiple locks by naming them
     db.set('x', val + 1, function (err) {
 
       g.unlock('myLock', function (err) {
-        // End critican section
+        // End critical section
       })
     })
   })
