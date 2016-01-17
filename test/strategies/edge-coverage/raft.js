@@ -128,7 +128,7 @@ test('raft strategy - acquiring a lock times out', function (t) {
 
     // This test happens so quickly that the channels usually haven't even connected yet
     async.whilst(function () {
-      return !a._channel.state.connected && !b._channel.state.connected
+      return !a._channel.state.connected || !b._channel.state.connected
     }, function (next) {
       setTimeout(next, 100)
     }, function () {
@@ -193,7 +193,7 @@ test('raft strategy - releasing a lock times out', function (t) {
 
     // This test happens so quickly that the channels usually haven't even connected yet
     async.whilst(function () {
-      return !a._channel.state.connected && !b._channel.state.connected
+      return !a._channel.state.connected || !b._channel.state.connected
     }, function (next) {
       setTimeout(next, 100)
     }, function () {
