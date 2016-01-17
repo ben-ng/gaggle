@@ -52,6 +52,7 @@ Strategy  | Distributed? | Failure Tolerance                                    
 --------- | ------------ | ------------------------------------------------------------------------------------------------------- | ----------------
 Redis     | No           | Redis can't fail, but any number of processes can fail as locks automatically expire                    | Uses `SET EX NX`
 Raft      | Yes          | Less than half of all processes can fail, or be out of contact because of network partitions.           | Uses [Raft](http://raft.github.io)
+Gaggle    | Yes          | Less than half of all processes can fail, or be out of contact because of network partitions.           | Based on [Raft](http://raft.github.io)
 
 ### Channels
 
