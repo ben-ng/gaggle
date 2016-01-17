@@ -138,6 +138,7 @@ test('atomic increment - Redis', function (t) {
         }
       , id: uuid.v4()
       }
+    , testStart = Date.now()
 
   testStrategy(function () {
     counter = counter + 1
@@ -145,16 +146,49 @@ test('atomic increment - Redis', function (t) {
     // Gives us coverage for both default and explicit init
     return new Strategy(counter % 2 === 0 ? explicitOptions : {id: uuid.v4()})
   }
-  , 100, function (err) {
+  , 20, function (err) {
     t.ifError(err, 'There should be no error')
+
+    t.pass('Test completed in ' + _.round(Date.now() - testStart, 2) + 's')
 
     t.end()
   })
 })
 
-test('atomic increment - Raft', function (t) {
+test('atomic increment - Raft (Accelerated)', function (t) {
   var Strategy = require('../../../strategies/raft-strategy')
     , Channel = require('../../../channels/in-memory-channel')
+    , testStart = Date.now()
+
+  testStrategy(function () {
+    var id = uuid.v4()
+      , chan = new Channel({
+          id: id
+        })
+      , strat = new Strategy({
+          id: id
+        , channel: chan
+        , strategyOptions: {
+            clusterSize: CLUSTER_SIZE
+          , forceHeartbeat: true
+          }
+        })
+
+    return strat
+  }
+  , 20, function (err) {
+    t.ifError(err, 'There should be no error')
+
+    t.pass('Test completed in ' + _.round(Date.now() - testStart, 2) + 's')
+
+    t.end()
+  })
+})
+
+test('atomic increment - Raft (Vanilla)', function (t) {
+  var Strategy = require('../../../strategies/raft-strategy')
+    , Channel = require('../../../channels/in-memory-channel')
+    , testStart = Date.now()
 
   testStrategy(function () {
     var id = uuid.v4()
@@ -173,6 +207,8 @@ test('atomic increment - Raft', function (t) {
   }
   , 20, function (err) {
     t.ifError(err, 'There should be no error')
+
+    t.pass('Test completed in ' + (Date.now() - testStart) + 'ms')
 
     t.end()
   })

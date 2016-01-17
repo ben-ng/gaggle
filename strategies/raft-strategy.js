@@ -43,6 +43,7 @@ function LeaderStrategy (opts) {
         , heartbeatInterval: Joi.number().min(0).default(50)
         , clusterSize: Joi.number().min(1)
         , unlockTimeout: Joi.number().min(0).default(5000)
+        , forceHeartbeat: Joi.boolean().default(false)
         })
       , channel: Joi.object()
       , id: Joi.string()
@@ -64,6 +65,7 @@ function LeaderStrategy (opts) {
   electMax = validatedOptions.value.strategyOptions.electionTimeout.max
   this._clusterSize = validatedOptions.value.strategyOptions.clusterSize
   this._unlockTimeout = validatedOptions.value.strategyOptions.unlockTimeout
+  this._shouldForceHeartbeat = validatedOptions.value.strategyOptions.forceHeartbeat
   heartbeatInterval = validatedOptions.value.strategyOptions.heartbeatInterval
 
   opts.channel.connect()
@@ -112,7 +114,7 @@ function LeaderStrategy (opts) {
     return _.random(electMin, electMax, false) // no floating points
   }
 
-  this._beginLeaderHeartbeat = function _beginLeaderHeartbeat () {
+  this._beginHeartbeat = function _beginHeartbeat () {
     var sendHeartbeat
 
     // Send initial blank entry. Don't broadcast this, as we
@@ -175,13 +177,11 @@ function LeaderStrategy (opts) {
     * because of lots more message passing... making the heartbeat interval
     * a small one turns out to be better.
     */
-    /*
-    self._forceLeaderHeartbeat = function _forceLeaderHeartbeat () {
+    self._forceHeartbeat = function _forceHeartbeat () {
       clearInterval(self._leaderHeartbeatInterval)
       sendHeartbeat()
       self._leaderHeartbeatInterval = setInterval(sendHeartbeat, heartbeatInterval)
     }
-    */
   }
 
   this._onMessageRecieved = _.bind(this._onMessageRecieved, this)
@@ -258,8 +258,10 @@ LeaderStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       , nonce: nonce
       }
 
-      // Accelerates lock acquisition by achieving consensus earlier
-      // self._forceLeaderHeartbeat()
+      // May accelerate unlocking by achieving consensus earlier
+      if (self._shouldForceHeartbeat) {
+        self._forceHeartbeat()
+      }
     }
     else {
       // Say no so that the follower doesn't waste time waiting
@@ -291,8 +293,10 @@ LeaderStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) 
         }
       })
 
-      // Accelerates unlocking by achieving consensus earlier
-      // self._forceLeaderHeartbeat()
+      // May accelerate unlocking by achieving consensus earlier
+      if (self._shouldForceHeartbeat) {
+        self._forceHeartbeat()
+      }
     }
   }
 }
@@ -383,7 +387,7 @@ LeaderStrategy.prototype._handleMessage = function _handleMessage (originNodeId,
         self._state = STATES.LEADER
         self._nextIndex = {}
         self._matchIndex = {}
-        self._beginLeaderHeartbeat()
+        self._beginHeartbeat()
         self._emitter.emit('leaderElected')
       }
     }
