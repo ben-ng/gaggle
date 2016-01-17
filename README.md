@@ -7,8 +7,6 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 **Contents**
 
 - [Performance](#performance)
-  - [Worst Case: Frequently Blocking Operations](#worst-case-frequently-blocking-operations)
-  - [Best Case: Rarely Blocking Operations](#best-case-rarely-blocking-operations)
 - [Usage](#usage)
   - [Strategies](#strategies)
   - [Channels](#channels)
