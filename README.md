@@ -8,9 +8,10 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 
 Distributed strategies require the use of a [Channel](#channels)
 
-Strategy  | Distributed? | Failure Tolerance                                                            | Description
---------- | ------------ | ---------------------------------------------------------------------------- | ----------------
-Redis     | No           | Requires Redis to work, but processes can fail as locks automatically expire | Uses `SET EX NX`
+Strategy  | Distributed? | Failure Tolerance                                                                                       | Description
+--------- | ------------ | ------------------------------------------------------------------------------------------------------- | ----------------
+Redis     | No           | Requires Redis to work, but any number of processes can fail as locks automatically expire              | Uses `SET EX NX`
+Raft      | Yes          | Less than half of all processes can fail, or be out of contact because of network partitions.           | Uses [Raft](http://raft.github.io)
 
 ## Channels
 
