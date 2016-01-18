@@ -202,7 +202,7 @@ Gaggle uses three types of log entries: `LOCK`, `UNLOCK`, and `NOOP`.
 
 Each node applies the log entries to a dictionary that maps string keys to lock metadata. This is referred to as the "state machine" in the Raft paper, but I'll refer to it as the "lock map" or `lockMap` here.
 
-```
+```js
 lockMap = {
   'foo': {
     ttl: 1453090846002
@@ -215,6 +215,33 @@ lockMap = {
 ### Additional RPC Calls
 
 In addition to the `REQUEST_VOTE` and `APPEND_ENTRIES` RPC calls, Gaggle uses the `REQUEST_LOCK`, and `REQUEST_UNLOCK` RPC calls.
+
+```js
+// Sent when a follower wants a lock
+{
+  type: 'REQUEST_LOCK'
+, term: 1
+, key: 'foo'
+, duration: 5000
+, maxWait: 2000
+, nonce: 'abcd'
+}
+
+// Only sent when a lock cannot be granted
+{
+  type: 'REQUEST_LOCK_REPLY'
+, term: 1
+, nonce: 'abcd'
+}
+
+// Sent when a follower gives up a lock
+{
+  type: 'REQUEST_UNLOCK'
+, term: 1
+, key: 'foo'
+, nonce: 'abcd'
+}
+```
 
 ### Methods
 
@@ -263,7 +290,7 @@ Gaggle has a comprehensive test suite, and releases always have 100% statement c
 
 #### Fuzzer
 
-Gaggle has a fuzzer that has detected problems in the past. You can run it with `npm run fuzz`. It'll keep running until a consistency issue is detected.
+Gaggle has a fuzzer that has detected problems in the past. You can run it with `npm run fuzz`. It will keep running until a consistency issue is detected.
 
 #### Formal Proof
 
