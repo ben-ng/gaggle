@@ -59,11 +59,12 @@ test('raft strategy - acquisition fails early', function (t) {
     , sawExpectedErr = false
 
   a.lock(sameKey, {
-    duration: 10000
+    duration: 50000
+  , maxWait: 10000
   })
   .then(function (lock) {
     return b.lock(sameKey, {
-      maxWait: 50000
+      maxWait: 5000
     })
     .catch(function (err) {
       sawExpectedErr = true

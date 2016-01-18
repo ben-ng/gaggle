@@ -235,17 +235,29 @@ RaftStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
     // grant a lock, that duration is turned into a ttl
     var ttl
       , lockMapEntry = self._lockMap[key]
+        // If the state machine doesn't contain the key, or the lock has expired...
+        // The constant is a safety buffer that I'll probably change...
+      , stateMachineAllowsGrantingLock = lockMapEntry == null || lockMapEntry.ttl < Date.now() - 5000
+        // Without this check, a leadership change can cause locks to be granted at the same time
+        // by two different processes
+      , doesNotHaveUncommittedEntriesInPreviousTerms = _.find(self._log, function (entry, idx) {
+          return entry.term < self._currentTerm && idx > self._commitIndex
+        }) == null
 
-    // If the state machine doesn't contain the key, or the lock has expired...
-    // The 300 is a safety buffer that I'll probably change...
-    if (lockMapEntry == null || lockMapEntry.ttl < Date.now() - 300) {
+    if (stateMachineAllowsGrantingLock && doesNotHaveUncommittedEntriesInPreviousTerms) {
       ttl = Date.now() + duration
 
       self._log.push({
         term: self._currentTerm
         // Replace duration and maxWait with ttl; that information is useless
         // now, and the ttl is all that matters to the cluster
-      , data: _.extend({ttl: ttl}, _.omit(entry, 'duration', 'maxWait'))
+      , data: _.extend({
+          ttl: ttl
+          /*
+        , granter: self.id.substring(0, 5) + '@' + (self._log.length - 1) + ',' + self._lastApplied
+        , locks: JSON.parse(JSON.stringify(self._lockMap))
+          */
+        }, _.omit(entry, 'duration', 'maxWait'))
       })
 
       self._lockMap[key] = {
@@ -263,6 +275,26 @@ RaftStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
       , term: self._currentTerm
       , nonce: nonce
       })
+
+      /**
+      * To eliminate problems like the one in Figure 3.7, Raft never commits log entries from previous
+      * terms by counting replicas. Only log entries from the leader’s current term are committed by
+      * counting replicas
+      * p24
+      */
+
+      // Insert a noop entry to unblock the system
+      if (!doesNotHaveUncommittedEntriesInPreviousTerms) {
+        var dummyEntry = {
+          term: self._currentTerm
+        , data: 'noop'
+        }
+
+        if (_.find(self._log, dummyEntry) == null) {
+          self._log.push(dummyEntry)
+          self._emitter.emit('dirty')
+        }
+      }
     }
   }
 }
@@ -283,6 +315,10 @@ RaftStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) {
           key: key
         , nonce: nonce
         , ttl: -1
+          /*
+        , granter: self.id.substring(0, 5) + '@' + (self._log.length - 1) + ',' + self._lastApplied
+        , locks: JSON.parse(JSON.stringify(self._lockMap))
+          */
         }
       })
 
@@ -343,8 +379,15 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
     // Do not combine these conditions, its intentionally written this way so that the
     // code coverage tool can do a thorough analysis
     if (data.term >= self._currentTerm) {
-      if ((self._votedFor == null || self._votedFor === data.candidateId) &&
-        (data.lastLogIndex < 0 || data.lastLogIndex >= self._log.length - 1)) {
+      var lastLogEntry = self._log.length > 0 ? self._log[self._log.length - 1] : null
+        , lastLogTerm = lastLogEntry != null ? lastLogEntry.term : -1
+        , candidateIsAtLeastAsUpToDate = data.lastLogTerm > lastLogTerm || // Its either in a later term...
+                                        // or same term, and at least at the same index
+                                        data.lastLogTerm === lastLogTerm && data.lastLogIndex >= self._log.length - 1 &&
+                                        // and it has applied at least as many entries as we have
+                                        data.lastAppliedIndex >= self._lastApplied
+
+      if ((self._votedFor == null || self._votedFor === data.candidateId) && candidateIsAtLeastAsUpToDate) {
         self._votedFor = data.candidateId
         self._channel.send(data.candidateId, {
           type: RPC_TYPE.REQUEST_VOTE_REPLY
@@ -664,13 +707,16 @@ RaftStrategy.prototype._unlock = function _unlock (lock) {
 }
 
 RaftStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) {
-  if (entry.data.ttl < 0) {
-    this._lockMap[entry.data.key] = null
-  }
-  else {
-    this._lockMap[entry.data.key] = {
-      nonce: entry.data.nonce
-    , ttl: entry.data.ttl
+  // Noop entries have no data
+  if (entry.data !== 'noop') {
+    if (entry.data.ttl < 0) {
+      this._lockMap[entry.data.key] = null
+    }
+    else {
+      this._lockMap[entry.data.key] = {
+        nonce: entry.data.nonce
+      , ttl: entry.data.ttl
+      }
     }
   }
 }

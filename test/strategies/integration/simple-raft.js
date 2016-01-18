@@ -374,3 +374,87 @@ test('raft strategy - catches lagging followers up', function (t) {
     })
   })
 })
+
+/**
+* This tests that the noop message is added to unblock the cluster
+*/
+test('raft strategy - unblocks when uncommitted entries in previous terms are detected', function (t) {
+  var POLLING_INTERVAL = 1000
+
+  t.plan(9)
+
+  createClusterWithLeader(2, function (err, cluster, processA, cleanup) {
+    var processB
+
+    t.ifError(err, 'should not error')
+
+    processB = _.find(cluster, function (node) {
+      return node.id !== processA.id
+    })
+
+    processA.lock('lock_a')
+    .then(function (lock) {
+      t.pass('acquires lock a')
+
+      return processA.unlock(lock)
+      .then(function () {
+        t.pass('releases lock a')
+      })
+    })
+    .then(function () {
+      // Keep elections going until we elect processB as leader
+      async.whilst(function () {
+        return processB._state !== Strategy._STATES.LEADER
+      }, function (next) {
+        processB._beginElection()
+        setTimeout(next, POLLING_INTERVAL)
+      }, function () {
+        var earlierTerm = processB._currentTerm - 1
+          , oldCommitIndex = processB._commitIndex
+
+        t.ok(processB._state === Strategy._STATES.LEADER, 'the other process is now the processA')
+
+        // Time for some hacky manipulation. We need to insert a log entry into an earlier term.
+        processA._log.push({term: earlierTerm, data: {key: 'foo', ttl: -1}})
+        processB._log.push({term: earlierTerm, data: {key: 'foo', ttl: -1}})
+
+        // This lock should fail
+        processB.lock('lock_b')
+        .catch(function (e) {
+          t.ok(e != null, 'the first lock should fail')
+
+          return new Promise(function (resolve, reject) {
+            async.whilst(function () {
+              // Keep going until the noop entry is committed
+              return processB._commitIndex === oldCommitIndex
+            }, function (next) {
+              setTimeout(next, POLLING_INTERVAL)
+            }, function () {
+              resolve()
+            })
+          })
+        })
+        .then(function () {
+
+          t.ok(_.find(processB._log, function (e) { return e.data === 'noop' }) != null, 'a noop message was sent')
+
+          processB.lock('lock_b')
+          .then(function (lock) {
+            t.pass('acquires lock b')
+
+            return processB.unlock(lock)
+            .then(function () {
+              t.pass('releases lock b')
+            })
+          })
+          .then(function () {
+            cleanup()
+            .then(function () {
+              t.pass('cleanly closed the strategy')
+            })
+          })
+        })
+      })
+    })
+  })
+})
