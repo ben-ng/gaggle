@@ -58,7 +58,7 @@ Raft - Best Case x 0.17 ops/sec ±0.71% (5 runs sampled)
 
 Note that ms/operation can be much lower than the ~70ms each task takes because multiple processes are working on tasks at the same time.
 
-You can run the benchmark suite with `npm run benchmark`, or run them ten times with `npm run benchmarks` (the results aren't very stable due to the randomness in Raft leader election).
+You can run the benchmark suite with `npm run benchmark`, or run it ten times with `npm run benchmarks` (the results aren't very stable due to the randomness in Raft leader election).
 
 ## Usage
 
