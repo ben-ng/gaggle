@@ -20,7 +20,6 @@ var StrategyInterface = require('./strategy-interface')
     , REQUEST_LOCK: 'REQUEST_LOCK'
     , REQUEST_LOCK_REPLY: 'REQUEST_LOCK_REPLY'
     , REQUEST_UNLOCK: 'REQUEST_UNLOCK'
-    , REQUEST_UNLOCK_REPLY: 'REQUEST_UNLOCK_REPLY'
     }
 
 /**
@@ -383,9 +382,7 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
         , lastLogTerm = lastLogEntry != null ? lastLogEntry.term : -1
         , candidateIsAtLeastAsUpToDate = data.lastLogTerm > lastLogTerm || // Its either in a later term...
                                         // or same term, and at least at the same index
-                                        data.lastLogTerm === lastLogTerm && data.lastLogIndex >= self._log.length - 1 &&
-                                        // and it has applied at least as many entries as we have
-                                        data.lastAppliedIndex >= self._lastApplied
+                                        data.lastLogTerm === lastLogTerm && data.lastLogIndex >= self._log.length - 1
 
       if ((self._votedFor == null || self._votedFor === data.candidateId) && candidateIsAtLeastAsUpToDate) {
         self._votedFor = data.candidateId
