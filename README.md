@@ -14,6 +14,23 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
   - [Atomic Increments](#atomic-increments)
     - [Sample Code: Performing Atomic Increments (Callbacks)](#sample-code-performing-atomic-increments-callbacks)
     - [Sample Code: Performing Atomic Increments (Promises)](#sample-code-performing-atomic-increments-promises)
+- [The Gaggle Algorithm](#the-gaggle-algorithm)
+  - [Log Entries](#log-entries)
+  - [State Machine](#state-machine)
+  - [Additional RPC Calls](#additional-rpc-calls)
+  - [Methods](#methods)
+    - [Lock(key, duration, maxWait)](#lockkey-duration-maxwait)
+      - [Leader.lock](#leaderlock)
+      - [Follower.lock](#followerlock)
+      - [Candidate.lock](#candidatelock)
+    - [Unlock(key, nonce, maxWait)](#unlockkey-nonce-maxwait)
+      - [Leader.unlock](#leaderunlock)
+      - [Follower.unlock](#followerunlock)
+      - [Candidate.unlock](#candidateunlock)
+  - [Correctness](#correctness)
+    - [Test Suite](#test-suite)
+    - [Fuzzer](#fuzzer)
+    - [Formal Proof](#formal-proof)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -23,24 +40,25 @@ Gaggle is a keyed mutex. It abstracts over different [Strategies](#strategies) f
 Each test performs an asynchronous operation that takes approximately 70ms a hundred times. The "sequential" test is a single process performing all one hundred operations itself, in series. The "Worst Case" tests are ten processes trying to acquire the same lock before performing the task. The "Best Case" tests are ten processes acquiring different locks before performing the task.
 
 ```
-Sequential - Baseline x 0.15 ops/sec ±1.12% (5 runs sampled)
-Redis - Worst Case x 0.13 ops/sec ±2.99% (5 runs sampled)
-Gaggle - Worst Case x 0.12 ops/sec ±0.91% (5 runs sampled)
-Raft - Worst Case x 0.05 ops/sec ±11.94% (5 runs sampled)
-Redis - Best Case x 0.66 ops/sec ±2.69% (6 runs sampled)
-Gaggle - Best Case x 0.42 ops/sec ±4.01% (6 runs sampled)
-Raft - Best Case x 0.13 ops/sec ±45.01% (5 runs sampled)
+Redis - Worst Case x 0.13 ops/sec ±1.20% (5 runs sampled)
+Gaggle - Worst Case x 0.12 ops/sec ±1.41% (5 runs sampled)
+Raft - Worst Case x 0.05 ops/sec ±0.92% (5 runs sampled)
+Redis - Best Case x 0.63 ops/sec ±1.65% (6 runs sampled)
+Gaggle - Best Case x 0.43 ops/sec ±7.17% (6 runs sampled)
+Raft - Best Case x 0.17 ops/sec ±0.71% (5 runs sampled)
 
-      Raft - Worst Case | ######################################## | 210.45 ms/operation
-    Gaggle - Worst Case | ################                         | 84.17 ms/operation
-       Raft - Best Case | ###############                          | 79.9 ms/operation
-     Redis - Worst Case | ###############                          | 76.5 ms/operation
-  Sequential - Baseline | #############                            | 68.02 ms/operation
-     Gaggle - Best Case | #####                                    | 23.97 ms/operation
-      Redis - Best Case | ###                                      | 15.13 ms/operation
+      Raft - Worst Case | ######################################## | 201.18 ms/operation
+    Gaggle - Worst Case | ################                         | 82.16 ms/operation
+     Redis - Worst Case | ###############                          | 77.02 ms/operation
+  Sequential - Baseline | ##############                           | 68.32 ms/operation
+       Raft - Best Case | ############                             | 59.71 ms/operation
+     Gaggle - Best Case | #####                                    | 23.01 ms/operation
+      Redis - Best Case | ###                                      | 15.78 ms/operation
 ```
 
 Note that ms/operation can be much lower than the ~70ms each task takes because multiple processes are working on tasks at the same time.
+
+You can run the benchmark suite with `npm run benchmark`, or run them ten times with `npm run benchmarks` (the results aren't very stable due to the randomness in Raft leader election).
 
 ## Usage
 
@@ -143,6 +161,113 @@ g.lock('myLock', {    // You can create multiple locks by naming them
 ```
 
 By enclosing the `GET` and `SET` commands within the critical section, we guarantee that updates are not lost.
+
+## The Gaggle Algorithm
+
+Gaggle is based on [Raft](http://raft.github.io). It currently implements log replication and limited membership changes (the cluster size may not change, but process identifiers can).
+
+### Log Entries
+
+Gaggle uses three types of log entries: `LOCK`, `UNLOCK`, and `NOOP`.
+
+```js
+// A "lock" entry
+{
+  term: 1
+, data: {
+    key: 'foo'
+  , nonce: 'abcd'
+  , ttl: 1453090846002
+  }
+}
+
+// An "unlock" entry
+{
+  term: 1
+, data: {
+    key: 'foo'
+  , nonce: 'abcd'
+  , ttl: -1
+  }
+}
+
+// A "noop" entry
+{
+  term: 1
+, data: 'noop'
+}
+```
+
+### State Machine
+
+Each node applies the log entries to a dictionary that maps string keys to lock metadata. This is referred to as the "state machine" in the Raft paper, but I'll refer to it as the "lock map" or `lockMap` here.
+
+```
+lockMap = {
+  'foo': {
+    ttl: 1453090846002
+  , nonce: 'abcd'
+  }
+, 'bar': null
+}
+```
+
+### Additional RPC Calls
+
+In addition to the `REQUEST_VOTE` and `APPEND_ENTRIES` RPC calls, Gaggle uses the `REQUEST_LOCK`, and `REQUEST_UNLOCK` RPC calls.
+
+### Methods
+
+#### Lock(key, duration, maxWait)
+
+##### Leader.lock
+
+1. If at least one entry from the current term has **not** been committed, append a `NOOP` entry to the log, send a heartbeat, and reject the request
+2. If no entry for the `key` exists in `lockMap`, or the `ttl` of an existing entry is in the past, add a `LOCK` entry to the log, and send a heartbeat
+3. If the `LOCK` entry from step 2 is committed before `maxWait` seconds, send a heartbeat, and resolve the request
+4. Reject the request if `maxWait` seconds elapse before resolving
+
+##### Follower.lock
+
+1. Send `REQUEST_LOCK` with a unique `nonce` to the leader
+2. Resolve the request when a `LOCK` log entry is committed with the same `nonce`
+3. Reject the request if `maxWait` seconds elapse before resolving
+
+##### Candidate.lock
+
+1. Wait until a leader is elected, then apply the rules for Leader or Followers
+
+#### Unlock(key, nonce, maxWait)
+
+##### Leader.unlock
+
+1. If no entry for the `key` exists in `lockMap`, or the entry's `nonce` does not match the `nonce` argument, reject the request
+2. Otherwise, push an `UNLOCK` entry onto the log
+3. When the entry from step 2 is committed, delete the `lockMap` entry for `key`, and resolve the request
+
+##### Follower.unlock
+
+1. Send `REQUEST_UNLOCK` with a previously used `nonce` to the leader
+2. Resolve the request when an `UNLOCK` log entry is committed with the same `nonce`
+3. Reject the request if `maxWait` seconds elapse before resolving
+
+##### Candidate.unlock
+
+1. Wait until a leader is elected, then apply the rules for Leader or Followers
+
+### Correctness
+
+#### Test Suite
+
+Gaggle has a comprehensive test suite, and releases always have 100% statement coverage.
+
+#### Fuzzer
+
+Gaggle has a fuzzer that has detected problems in the past. You can run it with `npm run fuzz`. It'll keep running until a consistency issue is detected.
+
+#### Formal Proof
+
+TODO
 
 ## License
 
