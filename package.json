@@ -13,7 +13,7 @@
     "doctoc": "doctoc README.md",
     "prepublish": "in-publish && npm run doctoc || not-in-publish",
     "benchmark": "node benchmark",
-    "benchmarks": "for run in {1..10}\n do\n npm run benchmark || true \n  done"
+    "benchmarks": "for run in {1..10}\n do\n npm run benchmark || true \n  done",
   },
   "repository": {
     "type": "git",
