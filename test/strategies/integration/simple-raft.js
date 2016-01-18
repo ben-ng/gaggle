@@ -20,10 +20,10 @@ createClusterWithLeader = function (CLUSTER_SIZE, cb) {
     , hasReachedLeaderConsensus
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
-    var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
+    var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
       , leaders = _(cluster).filter(function (node) {
           return node._currentTerm === maxTerm
-        }).pluck('_leader').compact().valueOf()
+        }).map('_leader').compact().valueOf()
       , followerCount = _.filter(cluster, function (node) {
           return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
         }).length

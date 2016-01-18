@@ -164,10 +164,10 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
 
     var previous = -1
       , sequenceLength = 50
-      , finish = _.after(function () {
+      , finish = _.after(sequenceLength, function () {
           b.removeAllListeners()
           cleanup()
-        }, sequenceLength)
+        })
 
     b.on('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')

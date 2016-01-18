@@ -22,10 +22,10 @@ test('elects exactly one leader when no process fails', function (t) {
     , hasReachedLeaderConsensus
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
-    var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
+    var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
       , leaders = _(cluster).filter(function (node) {
           return node._currentTerm === maxTerm
-        }).pluck('_leader').compact().valueOf()
+        }).map('_leader').compact().valueOf()
       , followerCount = _.filter(cluster, function (node) {
           return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
         }).length
@@ -98,10 +98,10 @@ test('re-elects a leader when a leader fails', function (t) {
   t.plan(9)
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
-    var maxTerm = Math.max.apply(null, _.pluck(cluster, '_currentTerm'))
+    var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
       , leaders = _(cluster).filter(function (node) {
           return node._currentTerm === maxTerm
-        }).pluck('_leader').compact().valueOf()
+        }).map('_leader').compact().valueOf()
       , followerCount = _.filter(cluster, function (node) {
           return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
         }).length

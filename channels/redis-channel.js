@@ -39,9 +39,9 @@ RedisChannel.prototype._connect = function _connect () {
     , connString = this._connString
     , subClient = connString != null ? redis.createClient(connString) : redis.createClient()
     , pubClient = connString != null ? redis.createClient(connString) : redis.createClient()
-    , connectedAfterTwoCalls = _.after(function () {
+    , connectedAfterTwoCalls = _.after(2, function () {
         self._connected()
-      }, 2)
+      })
 
   subClient.on('error', this._logFunction)
   pubClient.on('error', this._logFunction)
@@ -77,9 +77,9 @@ RedisChannel.prototype._connect = function _connect () {
 
 RedisChannel.prototype._disconnect = function _disconnect () {
   var self = this
-    , disconnectedAfterTwoCalls = _.after(function () {
+    , disconnectedAfterTwoCalls = _.after(2, function () {
         self._disconnected()
-      }, 2)
+      })
 
   this._sub.unsubscribe(this._redisChannel)
   this._sub.removeAllListeners()
