@@ -1,8 +1,8 @@
-var test = require('tape')
+var t = require('tap')
   , uuid = require('uuid')
   , Channel = require('../../../channels/unimplemented-channel')
 
-test('channels throw when inconsistent', function (t) {
+t.test('channels throw when inconsistent', function (t) {
   t.throws(function () {
     var c = new Channel({id: uuid.v4()})
     c._recieved('bogus', 'data')

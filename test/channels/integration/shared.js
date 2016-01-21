@@ -1,4 +1,4 @@
-var test = require('tape')
+var t = require('tap')
   , uuid = require('uuid')
   , _ = require('lodash')
   , InMemoryChannel = require('../../../channels/in-memory-channel')
@@ -15,7 +15,7 @@ var test = require('tape')
           return new RedisChannel({
             id: uuid.v4()
           , channelOptions: {
-              redisChannel: 'channelIntegrationTestChannel'
+              channelName: 'channelIntegrationTestChannel'
             }
           })
         }
@@ -24,7 +24,7 @@ var test = require('tape')
     }
 
 // Start outer EACH
-// Define these tests once for each channel
+// Define these t.tests once for each channel
 _.each(channelsToTest, function (channelDetails, channelName) {
 
 var createChannel = channelDetails.create
@@ -43,7 +43,7 @@ function openChannels (t, requestedChannelCount, cb) {
 
   cleanup = function () {
     if (cleanedUp) {
-      throw new Error('Cannot clean up the same test twice')
+      throw new Error('Cannot clean up the same t.test twice')
     }
     else {
       cleanedUp = true
@@ -96,7 +96,7 @@ function openChannels (t, requestedChannelCount, cb) {
   }
 }
 
-test(channelName + ' channel integration - throws when options are invalid', function (t) {
+t.test(channelName + ' channel integration - throws when options are invalid', function (t) {
 
   t.throws(function () {
     /* eslint-disable no-new */
@@ -114,7 +114,7 @@ test(channelName + ' channel integration - throws when options are invalid', fun
 
 })
 
-test(channelName + ' channel integration - should connect after instantiation and disconnect when requested', function (t) {
+t.test(channelName + ' channel integration - should connect after instantiation and disconnect when requested', function (t) {
 
   var c = createChannel()
 
@@ -131,7 +131,7 @@ test(channelName + ' channel integration - should connect after instantiation an
   c.connect()
 })
 
-test(channelName + ' channel integration - should send a message to a specified node', function (t) {
+t.test(channelName + ' channel integration - should send a message to a specified node', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
     b.once('recieved', function (originNodeId, data) {
@@ -145,7 +145,7 @@ test(channelName + ' channel integration - should send a message to a specified 
   })
 })
 
-test(channelName + ' channel integration - should send a message to itself', function (t) {
+t.test(channelName + ' channel integration - should send a message to itself', function (t) {
   openChannels(t, 1, function (a, cleanup) {
 
     a.once('recieved', function (originNodeId, data) {
@@ -159,7 +159,7 @@ test(channelName + ' channel integration - should send a message to itself', fun
   })
 })
 
-test(channelName + ' channel integration - should be FIFO', function (t) {
+t.test(channelName + ' channel integration - should be FIFO', function (t) {
   openChannels(t, 2, function (a, b, cleanup) {
 
     var previous = -1
@@ -185,14 +185,14 @@ test(channelName + ' channel integration - should be FIFO', function (t) {
   })
 })
 
-test(channelName + ' channel integration - test helper works', function (t) {
+t.test(channelName + ' channel integration - t.test helper works', function (t) {
   openChannels(t, 1, function (a, cleanup) {
     t.pass('the helper opens the channels')
     cleanup()
   })
 })
 
-test(channelName + ' channel integration - test helper throws if you try to clean up the test twice', function (t) {
+t.test(channelName + ' channel integration - t.test helper throws if you try to clean up the t.test twice', function (t) {
   var fakeTest = {end: function noop () {}}
 
   openChannels(fakeTest, 1, function (a, cleanup) {
@@ -206,7 +206,7 @@ test(channelName + ' channel integration - test helper throws if you try to clea
   })
 })
 
-test(channelName + ' channel integration - should broadcast a message to all nodes', function (t) {
+t.test(channelName + ' channel integration - should broadcast a message to all nodes', function (t) {
   openChannels(t, 3, function (a, b, c, cleanup) {
 
     a.once('recieved', function (originNodeId, data) {

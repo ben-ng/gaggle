@@ -2,23 +2,19 @@
 * Test if leader election is working
 */
 
-var test = require('tape')
+var t = require('tap')
   , async = require('async')
   , uuid = require('uuid')
   , _ = require('lodash')
   , Promise = require('bluebird')
+  , gaggle = require('../')
 
-test('elects exactly one leader when no process fails', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
-    , CHAN = 'leaderElectionTestChannel'
-    , CLUSTER_SIZE = 5
+t.test('elects exactly one leader when no process fails', function (t) {
+  var CLUSTER_SIZE = 5
     , POLLING_INTERVAL = 10
     , TIMEOUT = 5000
     , testStart = Date.now()
     , cluster = []
-    , tempId
-    , tempChannel
     , hasReachedLeaderConsensus
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
@@ -27,7 +23,7 @@ test('elects exactly one leader when no process fails', function (t) {
           return node._currentTerm === maxTerm
         }).map('_leader').compact().valueOf()
       , followerCount = _.filter(cluster, function (node) {
-          return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
+          return node._currentTerm === maxTerm && node._state === gaggle._STATES.FOLLOWER
         }).length
 
     if (leaders.length === cluster.length - 1 &&
@@ -41,20 +37,12 @@ test('elects exactly one leader when no process fails', function (t) {
   }
 
   for (var i=0; i<CLUSTER_SIZE; ++i) {
-    tempId = uuid.v4()
-    tempChannel = new Channel({
-      id: tempId
-    , channelOptions: {
-        redisChannel: CHAN
-      }
-    // , logFunction: console.error
-    })
-
-    cluster.push(new Strategy({
-      id: tempId
-    , channel: tempChannel
-    , strategyOptions: {
-        clusterSize: CLUSTER_SIZE
+    cluster.push(gaggle({
+      id: uuid.v4()
+    , clusterSize: CLUSTER_SIZE
+    , channel: {
+        name: 'redis'
+      , channelName: 'leaderConsensusTest'
       }
     }))
   }
@@ -82,20 +70,15 @@ test('elects exactly one leader when no process fails', function (t) {
   })
 })
 
-test('re-elects a leader when a leader fails', function (t) {
-  var Strategy = require('../../../strategies/raft-strategy')
-    , Channel = require('../../../channels/redis-channel')
-    , CHAN = 'leaderReelectionTestChannel'
-    , CLUSTER_SIZE = 5
-    , POLLING_INTERVAL = 10
+t.test('re-elects a leader when a leader fails', function (t) {
+  var CLUSTER_SIZE = 5
+    , POLLING_INTERVAL = 50
     , TIMEOUT = 5000
     , testStart = Date.now()
     , cluster = []
-    , tempId
-    , tempChannel
     , hasReachedLeaderConsensus
 
-  t.plan(9)
+  t.plan(7)
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
@@ -103,7 +86,7 @@ test('re-elects a leader when a leader fails', function (t) {
           return node._currentTerm === maxTerm
         }).map('_leader').compact().valueOf()
       , followerCount = _.filter(cluster, function (node) {
-          return node._currentTerm === maxTerm && node._state === Strategy._STATES.FOLLOWER
+          return node._currentTerm === maxTerm && node._state === gaggle._STATES.FOLLOWER
         }).length
 
     if (leaders.length === cluster.length - 1 &&
@@ -117,20 +100,12 @@ test('re-elects a leader when a leader fails', function (t) {
   }
 
   for (var i=0; i<CLUSTER_SIZE; ++i) {
-    tempId = uuid.v4()
-    tempChannel = new Channel({
-      id: tempId
-    , channelOptions: {
-        redisChannel: CHAN
-      }
-    // , logFunction: console.error
-    })
-
-    cluster.push(new Strategy({
-      id: tempId
-    , channel: tempChannel
-    , strategyOptions: {
-        clusterSize: CLUSTER_SIZE
+    cluster.push(gaggle({
+      id: uuid.v4()
+    , clusterSize: CLUSTER_SIZE
+    , channel: {
+        name: 'redis'
+      , channelName: 'leaderReelectionTest'
       }
     }))
   }
@@ -150,16 +125,9 @@ test('re-elects a leader when a leader fails', function (t) {
 
     // We want to perform the check that sees if a candidate is at least as up to date as a
     // follower before it grants a vote, so this creates some log entries for that to happen
-    leader.lock('lock_a')
-    .then(function (lock) {
-      t.pass('acquired lock a')
-
-      return leader.unlock(lock)
-      .then(function () {
-        t.pass('released lock a')
-      })
-    })
+    leader.append('mary had a little lamb', 1000)
     .then(function () {
+
       _.remove(cluster, function (node) {
         return node.id === leaderId
       })

@@ -1,12 +1,11 @@
-var StrategyInterface = require('./strategy-interface')
-  , Joi = require('joi')
+var Joi = require('joi')
   , util = require('util')
   , Promise = require('bluebird')
   , _ = require('lodash')
+  , EventEmitter = require('events').EventEmitter
   , uuid = require('uuid')
   , once = require('once')
-  , EventEmitter = require('events').EventEmitter
-  , prettifyJoiError = require('../helpers/prettify-joi-error')
+  , prettifyJoiError = require('./helpers/prettify-joi-error')
   , STATES = {
       CANDIDATE: 'CANDIDATE'
     , LEADER: 'LEADER'
@@ -17,53 +16,40 @@ var StrategyInterface = require('./strategy-interface')
     , REQUEST_VOTE_REPLY: 'REQUEST_VOTE_REPLY'
     , APPEND_ENTRIES: 'APPEND_ENTRIES'
     , APPEND_ENTRIES_REPLY: 'APPEND_ENTRIES_REPLY'
-    , REQUEST_LOCK: 'REQUEST_LOCK'
-    , REQUEST_LOCK_REPLY: 'REQUEST_LOCK_REPLY'
-    , REQUEST_UNLOCK: 'REQUEST_UNLOCK'
+    , APPEND_ENTRY: 'APPEND_ENTRY'
     }
 
-/**
-* A naive solution to distributed mutual exclusion. Performs leader election
-* and then routes all lock requests through the leader. Supports membership
-* changes. Somewhat fault tolerant -- crashes trigger a new round of leader
-* election. The intent of this strategy is to handle membership changes so
-* that other strategies can inherit from it and focus on different strategies
-* for mutual exclusion. The leader election is inspired by Raft's.
-*/
-
-function RaftStrategy (opts) {
+function Gaggle (opts) {
   var self = this
     , validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
-        strategyOptions: Joi.object().keys({
-          electionTimeout: Joi.object().keys({
-            min: Joi.number().min(0)
-          , max: Joi.number().min(Joi.ref('strategyOptions.electionTimeout.min'))
-          }).default({min: 300, max: 500})
-        , heartbeatInterval: Joi.number().min(0).default(50)
-        , clusterSize: Joi.number().min(1)
-        , unlockTimeout: Joi.number().min(0).default(5000)
-        })
+        clusterSize: Joi.number().min(1)
       , channel: Joi.object()
       , id: Joi.string()
-      }).requiredKeys('channel', 'strategyOptions', 'strategyOptions.clusterSize'), {
+      , electionTimeout: Joi.object().keys({
+          min: Joi.number().min(0)
+        , max: Joi.number().min(Joi.ref('electionTimeout.min'))
+        }).default({min: 300, max: 500})
+      , heartbeatInterval: Joi.number().min(0).default(50)
+      }).requiredKeys('id', 'channel', 'clusterSize'), {
         convert: false
       })
     , electMin
     , electMax
     , heartbeatInterval
 
-  StrategyInterface.apply(this, Array.prototype.slice.call(arguments))
-
   if (validatedOptions.error != null) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
 
   // For convenience
-  electMin = validatedOptions.value.strategyOptions.electionTimeout.min
-  electMax = validatedOptions.value.strategyOptions.electionTimeout.max
-  this._clusterSize = validatedOptions.value.strategyOptions.clusterSize
-  this._unlockTimeout = validatedOptions.value.strategyOptions.unlockTimeout
-  heartbeatInterval = validatedOptions.value.strategyOptions.heartbeatInterval
+  electMin = validatedOptions.value.electionTimeout.min
+  electMax = validatedOptions.value.electionTimeout.max
+  this._clusterSize = validatedOptions.value.clusterSize
+  this._unlockTimeout = validatedOptions.value.unlockTimeout
+  heartbeatInterval = validatedOptions.value.heartbeatInterval
+
+  this.id = validatedOptions.value.id
+  this._closed = false
 
   opts.channel.connect()
   this._channel = opts.channel
@@ -93,7 +79,14 @@ function RaftStrategy (opts) {
   // }
   this._lockMap = {}
 
-  this._emitter.on('committed', _.bind(this._onEntryCommitted, this))
+  // Proxy these internal events to the outside world
+  this._emitter.on('committed', function () {
+    self.emit.apply(self, ['committed'].concat(Array.prototype.slice(arguments)))
+  })
+
+  this._emitter.on('leaderElected', function () {
+    self.emit.apply(self, ['leaderElected'].concat(Array.prototype.slice(arguments)))
+  })
 
   // Volatile state on leaders
   this._nextIndex = {}
@@ -181,9 +174,9 @@ function RaftStrategy (opts) {
   this._resetElectionTimeout()
 }
 
-util.inherits(RaftStrategy, StrategyInterface)
+util.inherits(Gaggle, EventEmitter)
 
-RaftStrategy.prototype._onMessageRecieved = function _onMessageRecieved (originNodeId, data) {
+Gaggle.prototype._onMessageRecieved = function _onMessageRecieved (originNodeId, data) {
   var self = this
     , i
     , ii
@@ -218,116 +211,81 @@ RaftStrategy.prototype._onMessageRecieved = function _onMessageRecieved (originN
 
   // All nodes should commit entries between lastApplied and commitIndex
   for (i=self._lastApplied + 1, ii=self._commitIndex; i<=ii; ++i) {
-    self._emitter.emit('committed', self._log[i])
+    self._emitter.emit('committed', self._log[i], i)
     self._lastApplied = i
   }
 }
 
-RaftStrategy.prototype._lockIfPossible = function _lockIfPossible (entry) {
+Gaggle.prototype.append = function append (data, timeout) {
   var self = this
-    , key = entry.key
-    , duration = entry.duration
-    , nonce = entry.nonce
+    , msgId = self.id + '_' + uuid.v4()
+    , performRequest
 
-  if (self._state === STATES.LEADER) {
-    // Locks are requested with a duration, but when the leader decides its time to
-    // grant a lock, that duration is turned into a ttl
-    var ttl
-      , lockMapEntry = self._lockMap[key]
-        // If the state machine doesn't contain the key, or the lock has expired...
-        // The constant is a safety buffer that I'll probably change...
-      , stateMachineAllowsGrantingLock = lockMapEntry == null || lockMapEntry.ttl < Date.now() - 5000
-        // Without this check, a leadership change can cause locks to be granted at the same time
-        // by two different processes
-      , doesNotHaveUncommittedEntriesInPreviousTerms = _.find(self._log, function (entry, idx) {
-          return entry.term < self._currentTerm && idx > self._commitIndex
-        }) == null
+  timeout = typeof timeout === 'number' ? timeout : -1
 
-    if (stateMachineAllowsGrantingLock && doesNotHaveUncommittedEntriesInPreviousTerms) {
-      ttl = Date.now() + duration
-
+  /**
+  * This odd pattern is because there is a possibility that
+  * we were elected the leader after the leaderElected event
+  * fires. So we wait until its time to perform the request
+  * to decide if we need to delegate to the leader, or perform
+  * the logic ourselves
+  */
+  performRequest = once(function performRequest () {
+    if (self._state === STATES.LEADER) {
+      // Append to the log...
       self._log.push({
         term: self._currentTerm
-        // Replace duration and maxWait with ttl; that information is useless
-        // now, and the ttl is all that matters to the cluster
-      , data: _.extend({
-          ttl: ttl
-          /*
-        , granter: self.id.substring(0, 5) + '@' + (self._log.length - 1) + ',' + self._lastApplied
-        , locks: JSON.parse(JSON.stringify(self._lockMap))
-          */
-        }, _.omit(entry, 'duration', 'maxWait'))
+      , data: data
+      , id: msgId
       })
-
-      self._lockMap[key] = {
-        ttl: ttl
-      , nonce: nonce
-      }
-
-      // May accelerate unlocking by achieving consensus earlier
-      self._emitter.emit('dirty')
     }
     else {
-      // Say no so that the follower doesn't waste time waiting
-      self._channel.send(entry.requester, {
-        type: RPC_TYPE.REQUEST_LOCK_REPLY
-      , term: self._currentTerm
-      , nonce: nonce
+      self._channel.send(self._leader, {
+        type: RPC_TYPE.APPEND_ENTRY
+      , data: data
+      , id: msgId
       })
-
-      /**
-      * To eliminate problems like the one in Figure 3.7, Raft never commits log entries from previous
-      * terms by counting replicas. Only log entries from the leader’s current term are committed by
-      * counting replicas
-      * p24
-      */
-
-      // Insert a noop entry to unblock the system
-      if (!doesNotHaveUncommittedEntriesInPreviousTerms) {
-        var dummyEntry = {
-          term: self._currentTerm
-        , data: 'noop'
-        }
-
-        if (_.find(self._log, dummyEntry) == null) {
-          self._log.push(dummyEntry)
-          self._emitter.emit('dirty')
-        }
-      }
     }
-  }
-}
-
-RaftStrategy.prototype._unlockIfPossible = function _unlockIfPossible (entry) {
-  var self = this
+  })
 
   if (self._state === STATES.LEADER) {
-    var key = entry.key
-      , nonce = entry.nonce
-
-    if (self._lockMap[key] != null && self._lockMap[key].nonce === nonce) {
-      self._log.push({
-        term: self._currentTerm
-        // Replace duration and maxWait with ttl; that information is useless
-        // now, and the ttl is all that matters to the cluster
-      , data: {
-          key: key
-        , nonce: nonce
-        , ttl: -1
-          /*
-        , granter: self.id.substring(0, 5) + '@' + (self._log.length - 1) + ',' + self._lastApplied
-        , locks: JSON.parse(JSON.stringify(self._lockMap))
-          */
-        }
-      })
-
-      // May accelerate unlocking by achieving consensus earlier
-      self._emitter.emit('dirty')
-    }
+    performRequest()
   }
+  else if (self._state === STATES.FOLLOWER && self._leader != null) {
+    performRequest()
+  }
+  else {
+    self._emitter.once('leaderElected', performRequest)
+  }
+
+  return new Promise(function (resolve, reject) {
+    var resolveOnCommitted = function _resolveOnCommitted (entry) {
+          if (entry.id === msgId) {
+            resolve(entry)
+            cleanup()
+          }
+        }
+      , cleanup = function _cleanup () {
+          self._emitter.removeListener('leaderElected', performRequest)
+          self._emitter.removeListener('committed', resolveOnCommitted)
+          clearTimeout(timeoutHandle)
+        }
+      , timeoutHandle
+
+    // And wait for acknowledgement...
+    self._emitter.on('committed', resolveOnCommitted)
+
+    // Or if we time out before the message is committed...
+    if (timeout > -1) {
+      timeoutHandle = setTimeout(function _failOnTimeout () {
+        reject(new Error('Timed out before the entry was committed'))
+        cleanup()
+      }, timeout)
+    }
+  })
 }
 
-RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, data) {
+Gaggle.prototype._handleMessage = function _handleMessage (originNodeId, data) {
 
   var self = this
     , conflictedAt = -1
@@ -347,38 +305,11 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
   }
 
   switch (data.type) {
-    case RPC_TYPE.REQUEST_LOCK:
-    if (data.term === self._currentTerm && self._state === STATES.LEADER) {
-      self._lockIfPossible({
-        key: data.key
-      , nonce: data.nonce
-      , duration: data.duration
-      , maxWait: data.maxWait
-      , requester: originNodeId
-      })
-    }
-    break
-
-    // A reply is a quick failure message
-    case RPC_TYPE.REQUEST_LOCK_REPLY:
-      self._emitter.emit('lockRejected', data.nonce)
-    break
-
-
-    case RPC_TYPE.REQUEST_UNLOCK:
-    if (data.term === self._currentTerm && self._state === STATES.LEADER) {
-      self._unlockIfPossible({
-        key: data.key
-      , nonce: data.nonce
-      })
-    }
-    break
-
     case RPC_TYPE.REQUEST_VOTE:
     // Do not combine these conditions, its intentionally written this way so that the
     // code coverage tool can do a thorough analysis
     if (data.term >= self._currentTerm) {
-      var lastLogEntry = self._log.length > 0 ? self._log[self._log.length - 1] : null
+      var lastLogEntry = _.last(self._log)
         , lastLogTerm = lastLogEntry != null ? lastLogEntry.term : -1
         , candidateIsAtLeastAsUpToDate = data.lastLogTerm > lastLogTerm || // Its either in a later term...
                                         // or same term, and at least at the same index
@@ -422,6 +353,18 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
         self._emitter.emit('leaderElected')
       }
     }
+    break
+
+    case RPC_TYPE.APPEND_ENTRY:
+      if (self._state === STATES.LEADER) {
+        self._log.push({
+          term: self._currentTerm
+        , id: data.id
+        , data: data.data
+        })
+
+        self._emitter.emit('dirty')
+      }
     break
 
     case RPC_TYPE.APPEND_ENTRIES:
@@ -483,6 +426,7 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
         self._log[idx] = {
           term: entry.term
         , data: entry.data
+        , id: entry.id
         }
       }
     })
@@ -521,7 +465,7 @@ RaftStrategy.prototype._handleMessage = function _handleMessage (originNodeId, d
   }
 }
 
-RaftStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout () {
+Gaggle.prototype._resetElectionTimeout = function _resetElectionTimeout () {
   var self = this
     , timeout = self._generateRandomElectionTimeout()
 
@@ -535,7 +479,7 @@ RaftStrategy.prototype._resetElectionTimeout = function _resetElectionTimeout ()
   }, timeout)
 }
 
-RaftStrategy.prototype._beginElection = function _beginElection () {
+Gaggle.prototype._beginElection = function _beginElection () {
   // To begin an election, a follower increments its current term and transitions to
   // candidate state. It then votes for itself and issues RequestVote RPCs in parallel
   // to each of the other servers in the cluster.
@@ -555,170 +499,11 @@ RaftStrategy.prototype._beginElection = function _beginElection () {
   , term: this._currentTerm
   , candidateId: this.id
   , lastLogIndex: lastLogIndex
-  , lastLogTerm: lastLogIndex > 0 ? this._log[lastLogIndex].term : -1
+  , lastLogTerm: lastLogIndex > -1 ? this._log[lastLogIndex].term : -1
   })
 }
 
-RaftStrategy.prototype._lock = function _lock (key, opts) {
-  var self = this
-    , sameNonce = self.id + '_' + uuid.v4()
-    , performRequest
-
-  /**
-  * This odd pattern is because there is a possibility that
-  * we were elected the leader after the leaderElected event
-  * fires. So we wait until its time to perform the request
-  * to decide if we need to delegate to the leader, or perform
-  * the logic ourselves
-  */
-  performRequest = once(function performRequest () {
-    if (self._state === STATES.LEADER) {
-      // Append to the log...
-      self._lockIfPossible({
-        key: key
-      , nonce: sameNonce
-      , duration: opts.duration
-      , maxWait: opts.maxWait
-      , requester: self.id
-      })
-    }
-    else {
-      self._channel.send(self._leader, {
-        type: RPC_TYPE.REQUEST_LOCK
-      , term: self._currentTerm
-      , key: key
-      , duration: opts.duration
-      , maxWait: opts.maxWait
-      , nonce: sameNonce
-      })
-    }
-  })
-
-  if (self._state === STATES.LEADER) {
-    performRequest()
-  }
-  else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    performRequest()
-  }
-  else {
-    self._emitter.once('leaderElected', performRequest)
-  }
-
-  return new Promise(function (resolve, reject) {
-    var grantOnCommitted = function _grantOnCommitted (entry) {
-          // A ttl < 0 is an unlock request and should be ignored
-          if (entry.data.nonce === sameNonce && entry.data.ttl > 0) {
-            resolve({
-              key: entry.data.key
-            , nonce: entry.data.nonce
-            })
-            cleanup()
-          }
-        }
-      , failOnReject = function _failOnReject (nonce) {
-          if (nonce === sameNonce) {
-            reject(new Error('Another process is holding on to the lock right now'))
-            cleanup()
-          }
-        }
-      , failOnTimeout = function _failOnTimeout () {
-          self._channel.send(self._leader, {
-            type: RPC_TYPE.REQUEST_UNLOCK
-          , term: self._currentTerm
-          , key: key
-          , nonce: sameNonce
-          })
-
-          reject(new Error('Timed out before acquiring the lock'))
-          cleanup()
-        }
-      , cleanup = function _cleanup () {
-          self._emitter.removeListener('leaderElected', performRequest)
-          self._emitter.removeListener('committed', grantOnCommitted)
-          self._emitter.removeListener('lockRejected', failOnReject)
-          clearTimeout(timeoutHandle)
-        }
-      , timeoutHandle
-
-    // And wait for acknowledgement. Once we commit the entry,
-    // we can grant the lock.
-    self._emitter.on('committed', grantOnCommitted)
-    self._emitter.on('lockRejected', failOnReject)
-
-    // If we time out before the lock is granted
-    // remove the event handler and reject
-    timeoutHandle = setTimeout(failOnTimeout, opts.maxWait)
-  })
-}
-
-RaftStrategy.prototype._unlock = function _unlock (lock) {
-  var self = this
-    , sameNonce = lock.nonce
-
-  if (self._state === STATES.LEADER) {
-    // Append to the log...
-    self._unlockIfPossible({
-      key: lock.key
-    , nonce: lock.nonce
-    })
-  }
-  else if (self._state === STATES.FOLLOWER && self._leader != null) {
-    self._channel.send(self._leader, {
-      type: RPC_TYPE.REQUEST_UNLOCK
-    , term: self._currentTerm
-    , key: lock.key
-    , nonce: sameNonce
-    })
-  }
-  /**
-  * We don't queue unlocks the same way that we queue locks because
-  * its so unlikely that the leader goes down in between a lock
-  * and unlock, and the unlock request happens precisely when
-  * the follower becomes a candidate.
-  */
-
-  return new Promise(function (resolve, reject) {
-    var ackOnCommitted = function _ackOnCommitted (entry) {
-          // A ttl > 0 is a lock acquisition and should be ignored
-          if (entry.data.nonce === sameNonce && entry.data.ttl < 0) {
-            self._emitter.removeListener('committed', ackOnCommitted)
-            clearTimeout(timeoutHandle)
-
-            resolve()
-          }
-        }
-      , timeoutHandle
-
-    // And wait for acknowledgement. Once we commit the entry,
-    // we can confirm the unlock.
-    self._emitter.on('committed', ackOnCommitted)
-
-    // If we time out before the lock is granted
-    // remove the event handler and reject
-    timeoutHandle = setTimeout(function onUnlockTimeout () {
-      self._emitter.removeListener('committed', ackOnCommitted)
-
-      reject(new Error('Timed out before unlocking'))
-    }, self._unlockTimeout)
-  })
-}
-
-RaftStrategy.prototype._onEntryCommitted = function _onEntryCommitted (entry) {
-  // Noop entries have no data
-  if (entry.data !== 'noop') {
-    if (entry.data.ttl < 0) {
-      this._lockMap[entry.data.key] = null
-    }
-    else {
-      this._lockMap[entry.data.key] = {
-        nonce: entry.data.nonce
-      , ttl: entry.data.ttl
-      }
-    }
-  }
-}
-
-RaftStrategy.prototype._close = function _close () {
+Gaggle.prototype.close = function close () {
   var self = this
 
   this._channel.removeListener('recieved', this._onMessageRecieved)
@@ -735,8 +520,7 @@ RaftStrategy.prototype._close = function _close () {
   })
 }
 
-module.exports = RaftStrategy
-
+module.exports = Gaggle
 module.exports._STATES = _.cloneDeep(STATES)
 module.exports._RPC_TYPE = _.cloneDeep(RPC_TYPE)
 

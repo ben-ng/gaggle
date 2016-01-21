@@ -1,8 +1,8 @@
-var test = require('tape')
+var t = require('tap')
   , uuid = require('uuid')
   , Channel = require('../../../channels/unimplemented-channel')
 
-test('throws when stub methods are called', function (t) {
+t.test('throws when stub methods are called', function (t) {
   var c = new Channel({id: uuid.v4()})
 
   t.throws(function () {

@@ -1,8 +1,8 @@
 var RedisChannel = require('../../../channels/redis-channel')
   , uuid = require('uuid')
-  , test = require('tape')
+  , t = require('tap')
 
-test('redis channel - fails options validation', function (t) {
+t.test('redis channel - fails options validation', function (t) {
   t.throws(function () {
     /*eslint-disable no-unused-vars*/
     var c = new RedisChannel({
@@ -14,7 +14,7 @@ test('redis channel - fails options validation', function (t) {
   t.end()
 })
 
-test('redis channel - connects with custom connection string', function (t) {
+t.test('redis channel - connects with custom connection string', function (t) {
   var c
 
   t.plan(3)
@@ -24,8 +24,8 @@ test('redis channel - connects with custom connection string', function (t) {
       id: uuid.v4()
     , logFunction: console.error
     , channelOptions: {
-        redisConnectionString: 'redis://127.0.0.1'
-      , redisChannel: 'dummy;neverused'
+        connectionString: 'redis://127.0.0.1'
+      , channelName: 'dummy;neverused'
       }
     })
   }, 'Should not throw')

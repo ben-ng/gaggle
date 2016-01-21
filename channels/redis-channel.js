@@ -12,12 +12,12 @@ var ChannelInterface = require('./channel-interface')
 function RedisChannel (opts) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
         channelOptions: Joi.object().keys({
-          redisConnectionString: Joi.string()
-        , redisChannel: Joi.string()
+          connectionString: Joi.string()
+        , channelName: Joi.string()
         })
       , logFunction: Joi.func()
       , id: Joi.string()
-      }).requiredKeys('channelOptions', 'channelOptions.redisChannel'), {
+      }).requiredKeys('channelOptions', 'channelOptions.channelName'), {
         convert: false
       })
 
@@ -27,8 +27,8 @@ function RedisChannel (opts) {
     throw new Error(prettifyJoiError(validatedOptions.error))
   }
 
-  this._connString = _.get(validatedOptions, 'value.channelOptions.redisConnectionString')
-  this._redisChannel = _.get(validatedOptions, 'value.channelOptions.redisChannel')
+  this._connString = _.get(validatedOptions, 'value.channelOptions.connectionString')
+  this._redisChannel = _.get(validatedOptions, 'value.channelOptions.channelName')
 }
 
 util.inherits(RedisChannel, ChannelInterface)
