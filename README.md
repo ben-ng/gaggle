@@ -86,13 +86,29 @@ var gaggle = require('gaggle')
     // uuids are recommended, but you can use any string id
   , uuid = require('uuid')
   , g = gaggle({
+      // Required settings
       id: uuid.v4()
     , clusterSize: 5
     , channel: {
         name: 'foobar'
         // ... additional Channel options specific to "foobar"
+        // see Channel documentation below
       }
-      // ... additional Gaggle options
+
+      // Optional settings
+
+      // How long to wait before declaring the leader dead?
+    , electionTimeout: {
+        min: 300
+      , max: 500
+      }
+
+      // How often should the leader send heartbeats?
+    , heartbeatInterval: Joi.number().min(0).default(50)
+
+      // Should the leader send a heartbeat if it would speed
+      // up the commit of a message?
+    , accelerateHeartbeats: Joi.boolean().default(false)
     })
 ```
 
