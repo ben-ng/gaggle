@@ -124,8 +124,22 @@ Anything that can be serialized and deserialized as JSON is valid message data. 
 g.append(data, function (err) {})
 g.append(data, timeout, function (err) {})
 
-g.append(data)
-g.append(data, timeout)
+g.append(data).then()
+g.append(data, timeout).then()
+```
+
+#### Deconstructing an instance
+
+```txt
+g.close([function(Error) callback])
+```
+
+When you're done, call `close` to remove event listeners and disconnect the channel.
+
+```js
+g.close(function (err) {})
+
+g.close().then()
 ```
 
 #### Event: committed
@@ -136,6 +150,16 @@ Emitted whenever an entry is committed to the node's log.
 g.on('committed', function (entry, index) {
   // entry => {id: 'some-uuid', term: 1, data: {foo: bar}}
   // index => 1
+})
+```
+
+#### Event: leaderElected
+
+Emitted whenever a node discovers that a new leader has been elected.
+
+```js
+g.on('leaderElected', function () {
+  console.log('four! more! years!')
 })
 ```
 

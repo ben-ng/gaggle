@@ -138,10 +138,10 @@ t.test('leader election - elects exactly one leader when no process fails', func
     })
     */
 
-    Promise.map(cluster, function (node) {
-      return node.close()
-    })
-    .then(function () {
+    async.map(cluster, function (node, next) {
+      // Tests the callback API
+      node.close(next)
+    }, function () {
       t.pass('Cleanly closed the strategy')
       t.end()
     })
@@ -216,7 +216,7 @@ t.test('leader election - re-elects a leader when a leader fails', function (t) 
 
       t.ok(cluster.length < CLUSTER_SIZE, 'The elected leader was removed from the cluster')
 
-      leader.close()
+      return leader.close()
       .then(function () {
         t.pass('The elected leader has disconnected')
         t.ok(!hasReachedLeaderConsensus(), 'Consensus has not been reached')
@@ -324,7 +324,7 @@ t.test('log replication - the leader can append entries', function (t) {
       return Promise.resolve()
     })
     .finally(function () {
-      cleanup().then(function () {
+      return cleanup().then(function () {
         t.pass('cleanly closed the strategy')
       })
     })
@@ -349,14 +349,11 @@ t.test('log replication - a follower can append entries', function (t) {
       t.ok('the committed event fired on the node')
     })
 
-    notTheLeader.append('foobar')
-    .then(function () {
+    // Use the callback API to cover those branches
+    notTheLeader.append('foobar', function () {
       t.pass('should append the message')
 
-      return Promise.resolve()
-    })
-    .finally(function () {
-      cleanup().then(function () {
+      return cleanup().then(function () {
         t.pass('cleanly closed the strategy')
       })
     })
@@ -378,7 +375,7 @@ t.test('log replication - the leader can append entries when heartbeats are acce
       return Promise.resolve()
     })
     .finally(function () {
-      cleanup().then(function () {
+      return cleanup().then(function () {
         t.pass('cleanly closed the strategy')
       })
     })
@@ -406,7 +403,7 @@ t.test('log replication - a follower can append entries when heartbeats are acce
       return Promise.resolve()
     })
     .finally(function () {
-      cleanup().then(function () {
+      return cleanup().then(function () {
         t.pass('cleanly closed the strategy')
       })
     })
@@ -425,9 +422,11 @@ t.test('log replication - appends are queued until a leader is elected', functio
   randomNode.append('foobar')
   .then(function () {
     t.pass('should append the message')
+
+    return Promise.resolve()
   })
   .finally(function () {
-    Promise.map(cluster, function (node) {
+    return Promise.map(cluster, function (node) {
       return node.close()
     })
     .then(function () {
@@ -448,9 +447,11 @@ t.test('log replication - appends fail if not sent within the timeout', function
   randomNode.append('foobar', 0)
   .catch(function (e) {
     t.equals(e.toString(), 'Error: Timed out before the entry was committed', 'should fail with the expected error')
+
+    return Promise.resolve()
   })
   .finally(function () {
-    Promise.map(cluster, function (node) {
+    return Promise.map(cluster, function (node) {
       return node.close()
     })
     .then(function () {
@@ -502,7 +503,7 @@ t.test('log replication - safety via induction step', function (t) {
 
       // Acquire a lock on the leader again, which should cause new entries to
       // be sent to the follower, and flush out the bad ones we added
-      leader.append('bar')
+      return leader.append('bar')
       .then(function () {
         t.pass('the message was appended')
         return Promise.resolve()
@@ -510,7 +511,7 @@ t.test('log replication - safety via induction step', function (t) {
       .then(function () {
         t.ok(_.find(follower._log, rubbishEntry) == null, 'the rubbish entry should have been removed')
 
-        cleanup()
+        return cleanup()
         .then(function () {
           t.pass('cleanly closed the strategy')
         })
