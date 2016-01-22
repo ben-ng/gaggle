@@ -1,4 +1,4 @@
-# Gaggle [![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) [![Coverage Status](https://img.shields.io/coveralls/ben-ng/gaggle/master.svg)](https://coveralls.io/github/ben-ng/gaggle?branch=master) [![npm version](https://img.shields.io/npm/v/gaggle.svg)](https://www.npmjs.com/package/gaggle)
+# Gaggle [![Build Status](https://img.shields.io/circleci/project/ben-ng/gaggle/master.svg)](https://circleci.com/gh/ben-ng/gaggle/tree/master) [![Coverage Status](https://img.shields.io/coveralls/ben-ng/gaggle/master.svg)](https://coveralls.io/github/ben-ng/gaggle?branch=master) [![npm version](https://img.shields.io/npm/v/gaggle.svg)](https://www.npmjs.com/package/gaggle)
 
 Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of use.
 
@@ -6,36 +6,20 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Contents**
 
-- [Performance](#performance)
-- [Usage](#usage)
-  - [Strategies](#strategies)
+- [Quick Example](#quick-example)
+- [API](#api)
+  - [Gaggle](#gaggle)
+    - [Creating an instance](#creating-an-instance)
+    - [Appending Messages](#appending-messages)
+    - [Event: committed](#event-committed)
   - [Channels](#channels)
-- [Examples](#examples)
-  - [Atomic Increments](#atomic-increments)
-    - [Sample Code: Performing Atomic Increments (Callbacks)](#sample-code-performing-atomic-increments-callbacks)
-    - [Sample Code: Performing Atomic Increments (Promises)](#sample-code-performing-atomic-increments-promises)
-- [The Gaggle Algorithm](#the-gaggle-algorithm)
-  - [Log Entries](#log-entries)
-  - [State Machine](#state-machine)
-  - [Additional RPC Calls](#additional-rpc-calls)
-  - [Methods](#methods)
-    - [Lock(key, duration, maxWait)](#lockkey-duration-maxwait)
-      - [Leader.lock](#leaderlock)
-      - [Follower.lock](#followerlock)
-      - [Candidate.lock](#candidatelock)
-    - [Unlock(key, nonce, maxWait)](#unlockkey-nonce-maxwait)
-      - [Leader.unlock](#leaderunlock)
-      - [Follower.unlock](#followerunlock)
-      - [Candidate.unlock](#candidateunlock)
-  - [Correctness](#correctness)
-    - [Test Suite](#test-suite)
-    - [Fuzzer](#fuzzer)
-    - [Formal Proof](#formal-proof)
+    - [Redis](#redis)
+    - [Memory](#memory)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Usage
+## Quick Example
 
 ```js
 var Gaggle = require('gaggle')
@@ -57,35 +41,121 @@ nodeC.on('committed', function (data) {
   console.log(data)
 })
 
-// Entry data can also be numbers, arrays, or objects
-nodeA.append('mary')
-nodeB.append('had')
-nodeA.append('a')
-nodeC.append('little')
+// You can be notified when a specific message is committed
+// by providing a callback
+nodeC.append('mary', function () {
+  console.log(',')
+})
 
-// You can also get a reference to a message like this
-var entry = nodeB.append('lamb')
-
-// So that you can tell when it commits
-entry.on('committed', function () {
+// Or, you can use promises
+nodeA.append('had').then(function () {
   console.log('!')
 })
 
-// This example prints the sentence "mary had a little lamb" in some order
-// Note that Raft only guarantees that all nodes commit entries in the same
-// order, but nodes sent from different nodes at different times may not be
-// committed in the order that they were sent.
+// Or, you can just cross your fingers and hope that an error
+// doesn't happen by neglecting the return result and callback
+nodeA.append('a')
+
+// Entry data can also be numbers, arrays, or objects
+// we were just using strings here for simplicity
+nodeB.append({foo: 'lamb'})
+
+// You can specify a timeout as a second argument
+nodeA.append('little', 1000)
+
+// By default, gaggle will wait indefinitely for a message to commit
+nodeC.append('a', function () {
+  // I may never be called!
+})
+
+// This example prints the sentence:
+//     "mary , had a little {foo: 'lamb'} !"
+// in SOME order; Raft only guarantees that all nodes will commit entries in
+// the same order, but nodes sent at different times may not be committed
+// in the order that they were sent.
 ```
 
-###
+## API
+
+### Gaggle
+
+#### Creating an instance
+
+```js
+var gaggle = require('gaggle')
+    // uuids are recommended, but you can use any string id
+  , uuid = require('uuid')
+  , g = gaggle({
+      id: uuid.v4()
+    , clusterSize: 5
+    , channel: {
+        name: 'foobar'
+        // ... additional Channel options specific to "foobar"
+      }
+      // ... additional Gaggle options
+    })
+```
+
+#### Appending Messages
+
+```txt
+g.append(Mixed data, [Number timeout], [function(Error) callback])
+```
+
+Anything that can be serialized and deserialized as JSON is valid message data. If `callback` is not provided, a `Promise` will be returned.
+
+```js
+g.append(data, function (err) {})
+g.append(data, timeout, function (err) {})
+
+g.append(data)
+g.append(data, timeout)
+```
+
+#### Event: committed
+
+Emitted whenever an entry is committed to the node's log.
+
+```js
+g.on('committed', function (entry, index) {
+  // entry => {id: 'some-uuid', term: 1, data: {foo: bar}}
+  // index => 1
+})
+```
 
 ### Channels
 
-Channel | Options                                                                                                                     | Description
-------- | --------------------------------------------------------------------------------------------------------------------------- | -----------
-Memory  | *None*                                                                                                                      | Useful for tests
-Redis   | <ul><li>**String** redisChannel *required*</li><li>**String** redisConnectionString `redis://user:pass@host:port`</li></ul> | Fast, works across different machines, but Redis can't fail
+#### Redis
 
+Fast, but relies heavily on your Redis server.
+
+```js
+gaggle({
+  id: uuid.v4()
+, clusterSize: 5
+, channel: {
+    name: 'redis'
+    // required, the channel to pub/sub to
+  , channelName: 'foobar'
+    // optional, defaults to redis's defaults
+  , connectionString: 'redis://user:password@127.0.0.1:1234'
+  }
+})
+```
+
+#### Memory
+
+No options, useful for testing.
+
+```js
+gaggle({
+  id: uuid.v4()
+, clusterSize: 5
+, channel: {
+    name: 'memory'
+  }
+})
+```
 
 ## License
 

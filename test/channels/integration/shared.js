@@ -106,7 +106,7 @@ t.test(channelName + ' channel integration - throws when options are invalid', f
 
   t.throws(function () {
     /* eslint-disable no-new */
-    new Channel({id: 'not-a-guid'})
+    new Channel({id: ''}) // needs to be a nonempty string
     /* eslint-enable no-new */
   }, 'throws when options are invalid')
 

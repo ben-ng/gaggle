@@ -35,7 +35,7 @@ function ChannelInterface (opts) {
   EventEmitter.call(this)
 
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
-    id: Joi.string().guid()
+    id: Joi.string()
   , logFunction: Joi.func().default(function noop () {})
   , channelOptions: Joi.object()
   }).requiredKeys('id'))
