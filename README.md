@@ -11,6 +11,8 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
   - [Gaggle](#gaggle)
     - [Creating an instance](#creating-an-instance)
     - [Appending Messages](#appending-messages)
+    - [Performing RPC calls on the leader](#performing-rpc-calls-on-the-leader)
+    - [Checking for uncommitted entries in previous terms](#checking-for-uncommitted-entries-in-previous-terms)
     - [Deconstructing an instance](#deconstructing-an-instance)
     - [Event: committed](#event-committed)
     - [Event: leaderElected](#event-leaderelected)
