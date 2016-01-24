@@ -24,7 +24,9 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
 ## Quick Example
 
 ```js
-var Gaggle = require('gaggle')
+var gaggle = require('gaggle')
+var uuid = require('uuid')
+var defaults = require('lodash/defaults')
 var opts = {
       channel: {
         name: 'redis'
@@ -33,9 +35,9 @@ var opts = {
     , clusterSize: 3
     }
 
-var nodeA = new Gaggle(opts)
-var nodeB = new Gaggle(opts)
-var nodeC = new Gaggle(opts)
+var nodeA = gaggle(defaults({id: uuid.v4()}, opts))
+var nodeB = gaggle(defaults({id: uuid.v4()}, opts))
+var nodeC = gaggle(defaults({id: uuid.v4()}, opts))
 
 // Nodes will emit "committed" events whenever the cluster
 // comes to consensus about an entry
