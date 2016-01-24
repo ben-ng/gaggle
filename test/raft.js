@@ -11,22 +11,19 @@ var t = require('tap')
   , createCluster
   , createClusterWithLeader
 
-createClusterWithLeader = function (CLUSTER_SIZE, accelerate, cb) {
+createClusterWithLeader = function (opts, cb) {
   var POLLING_INTERVAL = 100
     , CONSENSUS_TIMEOUT = 10000
     , testStart = Date.now()
     , cluster
     , hasReachedLeaderConsensus
 
-  if (typeof accelerate === 'function') {
-    cb = accelerate
-    accelerate = false
-  }
-  else {
-    accelerate = accelerate === true
-  }
+  opts = _.defaults(opts, {
+    rpc: {}
+  , accelerate: false
+  })
 
-  cluster = createCluster(CLUSTER_SIZE, accelerate)
+  cluster = createCluster(opts)
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
@@ -70,15 +67,16 @@ createClusterWithLeader = function (CLUSTER_SIZE, accelerate, cb) {
   })
 }
 
-createCluster = function createCluster (CLUSTER_SIZE, accelerate) {
+createCluster = function createCluster (opts) {
   var cluster = []
 
-  for (var i=0; i<CLUSTER_SIZE; ++i) {
+  for (var i=0; i<opts.clusterSize; ++i) {
     cluster.push(gaggle({
       id: uuid.v4()
-    , clusterSize: CLUSTER_SIZE
+    , clusterSize: opts.clusterSize
     , channel: {name: 'memory'}
-    , accelerateHeartbeats: accelerate
+    , accelerateHeartbeats: opts.accelerate
+    , rpc: opts.rpc
     }))
   }
 
@@ -244,7 +242,7 @@ t.test('leader election - re-elects a leader when a leader fails', function (t) 
 t.test('leader election - votes no for candidates in earlier terms', function (t) {
   t.plan(3)
 
-  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 2}, function (err, cluster, leader, cleanup) {
     var notTheLeader
 
     t.ifError(err, 'should not error')
@@ -277,7 +275,7 @@ t.test('leader election - votes no for candidates in earlier terms', function (t
 t.test('leader election - fails when append entries is recieved from earlier terms', function (t) {
   t.plan(3)
 
-  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 2}, function (err, cluster, leader, cleanup) {
     var notTheLeader
       , laterTerm
 
@@ -308,7 +306,7 @@ t.test('leader election - fails when append entries is recieved from earlier ter
 t.test('log replication - the leader can append entries', function (t) {
   t.plan(5)
 
-  createClusterWithLeader(5, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 5}, function (err, cluster, leader, cleanup) {
     t.ifError(err, 'there should be no error')
 
     t.ok(leader, 'a leader was elected, and all nodes are in consensus')
@@ -334,7 +332,7 @@ t.test('log replication - the leader can append entries', function (t) {
 t.test('log replication - a follower can append entries', function (t) {
   t.plan(5)
 
-  createClusterWithLeader(5, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 5}, function (err, cluster, leader, cleanup) {
     var notTheLeader
 
     t.ifError(err, 'there should be no error')
@@ -363,7 +361,7 @@ t.test('log replication - a follower can append entries', function (t) {
 t.test('log replication - the leader can append entries when heartbeats are accelerated', function (t) {
   t.plan(4)
 
-  createClusterWithLeader(5, true, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 5, accelerate: true}, function (err, cluster, leader, cleanup) {
     t.ifError(err, 'there should be no error')
 
     t.ok(leader, 'a leader was elected, and all nodes are in consensus')
@@ -385,7 +383,7 @@ t.test('log replication - the leader can append entries when heartbeats are acce
 t.test('log replication - a follower can append entries when heartbeats are accelerated', function (t) {
   t.plan(4)
 
-  createClusterWithLeader(5, true, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 5, accelerate: true}, function (err, cluster, leader, cleanup) {
     var notTheLeader
 
     t.ifError(err, 'there should be no error')
@@ -412,7 +410,7 @@ t.test('log replication - a follower can append entries when heartbeats are acce
 
 t.test('log replication - appends are queued until a leader is elected', function (t) {
   var CLUSTER_SIZE = 2
-    , cluster = createCluster(CLUSTER_SIZE)
+    , cluster = createCluster({clusterSize: CLUSTER_SIZE})
     , randomNode
 
   t.plan(2)
@@ -437,7 +435,7 @@ t.test('log replication - appends are queued until a leader is elected', functio
 
 t.test('log replication - appends fail if not sent within the timeout', function (t) {
   var CLUSTER_SIZE = 2
-    , cluster = createCluster(CLUSTER_SIZE)
+    , cluster = createCluster({clusterSize: CLUSTER_SIZE})
     , randomNode
 
   t.plan(2)
@@ -479,7 +477,7 @@ t.test('log replication - appends fail if not sent within the timeout', function
 t.test('log replication - safety via induction step', function (t) {
   t.plan(5)
 
-  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 2}, function (err, cluster, leader, cleanup) {
     t.ifError(err, 'should not error')
 
     leader.append('foo')
@@ -524,9 +522,9 @@ t.test('log replication - catches lagging followers up', function (t) {
   var POLLING_INTERVAL = 100
     , TEST_TIMEOUT = 10000
 
-  t.plan(7)
+  t.plan(8)
 
-  createClusterWithLeader(2, function (err, cluster, leader, cleanup) {
+  createClusterWithLeader({clusterSize: 2}, function (err, cluster, leader, cleanup) {
     var notTheLeader
 
     t.ifError(err, 'should not error')
@@ -572,10 +570,249 @@ t.test('log replication - catches lagging followers up', function (t) {
       }, function () {
         t.equals(notTheLeader._log.length, originalLogLength, 'The follower was caught up')
 
+        t.ok(!leader.hasUncommittedEntriesInPreviousTerms(), 'The leader should not have uncommitted entries in previous terms')
+
         cleanup()
         .then(function () {
           t.pass('cleanly closed the strategy')
         })
+      })
+    })
+  })
+})
+
+t.test('dispatch - waits for leader election before dispatching', function (t) {
+  var cluster = createCluster({
+        clusterSize: 5
+      , rpc: {
+          ping: function ping (f, b, cb) {
+            if (f === 'foo') {
+              cb(null, 'pong')
+            }
+            else {
+              cb(new Error('baz'))
+            }
+          }
+        }
+      })
+    , node = cluster[0]
+
+  t.plan(3)
+
+  node.dispatchOnLeader('ping', ['foo', 'bar'])
+  .then(function (res) {
+    t.equals(res.length, 1, 'should respond with one return value')
+    t.equals(res[0], 'pong', 'the return value should be "pong"')
+
+    return Promise.resolve()
+  })
+  .finally(function () {
+    return Promise.map(cluster, function (node) {
+      return node.close()
+    }).then(function () {
+      t.pass('cleanly closed the strategy')
+    })
+  })
+})
+
+t.test('dispatch - the leader can dispatch rpc calls', function (t) {
+  t.plan(5)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  , rpc: {
+      ping: function ping (f, b, cb) {
+        if (f === 'foo') {
+          cb(null, 'pong')
+        }
+        else {
+          cb(new Error('baz'))
+        }
+      }
+    }
+  }, function (err, cluster, leader, cleanup) {
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    leader.dispatchOnLeader('ping', ['foo', 'bar'])
+    .then(function (res) {
+      t.equals(res.length, 1, 'should respond with one return value')
+      t.equals(res[0], 'pong', 'the return value should be "pong"')
+
+      return Promise.resolve()
+    })
+    .finally(function () {
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
+t.test('dispatch - a follower can dispatch rpc calls', function (t) {
+  t.plan(6)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  , rpc: {
+      ping: function ping (f, b, cb) {
+        if (f === 'foo') {
+          cb(null, 'pong')
+        }
+        else {
+          cb(new Error('baz'))
+        }
+      }
+    }
+  }, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    // Use the callback API to cover those branches
+    notTheLeader.dispatchOnLeader('ping', ['foo', 'bar'], function (err, ret) {
+      t.ifError(err, 'there should be no error')
+      t.equals(arguments.length, 2, 'should respond with one return value')
+      t.equals(ret, 'pong', 'the return value should be "pong"')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
+t.test('dispatch - errors from rpc calls are properly handled', function (t) {
+  t.plan(6)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  , rpc: {
+      ping: function ping (f, b, cb) {
+        if (f === 'foo') {
+          cb(null, 'pong')
+        }
+        else {
+          cb(new Error('baz'))
+        }
+      }
+    }
+  }, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    // Use the callback API to cover those branches
+    notTheLeader.dispatchOnLeader('ping', ['fee', 'fi'], function (err, ret) {
+      t.ok(err, 'there should be an error')
+      t.ok(err instanceof Error, 'err should be an Error')
+      t.equals(err.toString(), 'Error: baz', 'the error message should be correct')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
+t.test('dispatch - calling a nonexistent method from a leader fails', function (t) {
+  t.plan(6)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  }, function (err, cluster, leader, cleanup) {
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    // Use the callback API to cover those branches
+    leader.dispatchOnLeader('ping', ['fee', 'fi'], function (err, ret) {
+      t.ok(err, 'there should be an error')
+      t.ok(err instanceof Error, 'err should be an Error')
+      t.equals(err.toString(), 'Error: The RPC method ping does not exist', 'the error message should be correct')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
+t.test('dispatch - calling a nonexistent method from a follower fails', function (t) {
+  t.plan(6)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  }, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    // Use the callback API to cover those branches
+    notTheLeader.dispatchOnLeader('ping', ['fee', 'fi'], function (err, ret) {
+      t.ok(err, 'there should be an error')
+      t.ok(err instanceof Error, 'err should be an Error')
+      t.equals(err.toString(), 'Error: The RPC method ping does not exist', 'the error message should be correct')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
+t.test('dispatch - rpc calls can time out', function (t) {
+  t.plan(5)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  , rpc: {
+      ping: function ping (f, b, cb) {
+        if (f === 'foo') {
+          cb(null, 'pong')
+        }
+        else {
+          cb(new Error('baz'))
+        }
+      }
+    }
+  }, function (err, cluster, leader, cleanup) {
+    var notTheLeader
+
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    notTheLeader = _.find(cluster, function (node) {
+      return node.id !== leader.id
+    })
+
+    // Use the callback API to cover those branches
+    notTheLeader.dispatchOnLeader('ping', ['foo', 'bar'], 0, function (err) {
+      t.ok(err, 'there should be an error')
+      t.equals(err.toString(), 'Error: Timed out before the rpc method returned', 'the error should be about timing out')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
       })
     })
   })

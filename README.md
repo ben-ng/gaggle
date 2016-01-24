@@ -132,6 +132,38 @@ g.append(data).then()
 g.append(data, timeout).then()
 ```
 
+
+#### Performing RPC calls on the leader
+
+```txt
+g.dispatchOnLeader(String functionName, Array args, [Number timeout], [function(Error, [Mixed arg1, Mixed arg2, ...]) callback])
+```
+
+If you're building something on top of Gaggle, you'll probably have to use the leader as a coordinator. This is a helper function that simplifies that. While the `timeout` period is optional, omitting it means that the operation may never complete. You should *probably* always specify a timeout to handle lost messages and leader crashes.
+
+```js
+// Calls the function at key "foo" on the "rpc" object that was passed in as
+// an option to the Gaggle constructor with the arguments "bar" and "baz".
+g.dispatchOnLeader('foo', ['bar', 'baz'], 5000, function (err, ret_a, ret_b) {
+})
+
+g.dispatchOnLeader('foo', ['bar', 'baz'], 5000)
+.spread(function (ret_a, ret_b) {
+
+})
+.catch(function (err) {
+
+})
+```
+
+#### Checking for uncommitted entries in previous terms
+
+```txt
+g.hasUncommittedEntriesInPreviousTerms()
+```
+
+You'll need to use this in your RPC functions in order to safely handle leadership changes. Since leaders do not commit entries in earlier terms, you might need to "nudge" the cluster into a consistent state by appending a no-op message.
+
 #### Deconstructing an instance
 
 ```txt
