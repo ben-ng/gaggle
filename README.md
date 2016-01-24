@@ -92,7 +92,10 @@ var gaggle = require('gaggle')
     // uuids are recommended, but you can use any string id
   , uuid = require('uuid')
   , g = gaggle({
-      // Required settings
+      /**
+      * Required settings
+      */
+
       id: uuid.v4()
     , clusterSize: 5
     , channel: {
@@ -101,7 +104,25 @@ var gaggle = require('gaggle')
         // see Channel documentation below
       }
 
-      // Optional settings
+      /**
+      * Optional settings
+      */
+
+      // Can be called through dispatchOnLeader()
+    , rpc: {
+        foo: function foo (a, b, c, d, cb) {
+          // "this" inside here refers to the leader Gaggle instance
+          // so you can do things like this...
+          if (this.this.hasUncommittedEntriesFromPreviousTerms()) {
+            this.append('noop')
+
+            cb(new Error('I am not ready yet, try again in a few seconds'))
+          }
+          else {
+            cb(null, ret_a, ret_b, ret_c)
+          }
+        }
+      }
 
       // How long to wait before declaring the leader dead?
     , electionTimeout: {
