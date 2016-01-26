@@ -201,6 +201,14 @@ g.close(function (err) {})
 g.close().then()
 ```
 
+#### Getting the state of the node
+
+```txt
+g.isLeader()
+```
+
+Returns `true` if the current node is the leader state. Note that multiple nodes may return `true` at the same time because they can be leaders in different terms.
+
 #### Event: committed
 
 Emitted whenever an entry is committed to the node's log.
