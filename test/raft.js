@@ -154,7 +154,7 @@ t.test('leader election - re-elects a leader when a leader fails', function (t) 
     , cluster = []
     , hasReachedLeaderConsensus
 
-  t.plan(7)
+  t.plan(8)
 
   hasReachedLeaderConsensus = function hasReachedLeaderConsensus () {
     var maxTerm = Math.max.apply(null, _.map(cluster, '_currentTerm'))
@@ -198,6 +198,7 @@ t.test('leader election - re-elects a leader when a leader fails', function (t) 
 
     t.ok(leaderId, 'A leader was elected, and all nodes are in consensus')
     t.ok(leader, 'The leader was found in the cluster')
+    t.ok(leader.isLeader(), 'The leader returns true for isLeader')
 
     // We want to perform the check that sees if a candidate is at least as up to date as a
     // follower before it grants a vote, so this creates some log entries for that to happen
