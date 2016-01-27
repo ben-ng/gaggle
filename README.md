@@ -15,6 +15,8 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Checking for uncommitted entries in previous terms](#checking-for-uncommitted-entries-in-previous-terms)
     - [Deconstructing an instance](#deconstructing-an-instance)
     - [Getting the state of the node](#getting-the-state-of-the-node)
+  - [Getting the log](#getting-the-log)
+  - [Getting the commit index](#getting-the-commit-index)
     - [Event: appended](#event-appended)
     - [Event: committed](#event-committed)
     - [Event: leaderElected](#event-leaderelected)
