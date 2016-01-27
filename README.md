@@ -211,6 +211,22 @@ g.isLeader()
 
 Returns `true` if the current node is the leader state. Note that multiple nodes may return `true` at the same time because they can be leaders in different terms.
 
+### Getting the log
+
+```txt
+g.getLog()
+```
+
+Returns the log, which is an array of entries.
+
+### Getting the commit index
+
+```txt
+g.getCommtiIndex()
+```
+
+Returns the commit index, which is the index of the last committed log entry.
+
 #### Event: appended
 
 Emitted whenever an entry is appended to the node's log.

@@ -305,7 +305,7 @@ t.test('leader election - fails when append entries is recieved from earlier ter
 })
 
 t.test('log replication - the leader can append entries', function (t) {
-  t.plan(6)
+  t.plan(8)
 
   createClusterWithLeader({clusterSize: 5}, function (err, cluster, leader, cleanup) {
     t.ifError(err, 'there should be no error')
@@ -323,6 +323,9 @@ t.test('log replication - the leader can append entries', function (t) {
     leader.append('foobar')
     .then(function () {
       t.pass('should append the message')
+
+      t.equals(leader.getLog().length, 1, 'there should be a log of length one')
+      t.equals(leader.getCommitIndex(), 0, 'the commit index should be zero')
 
       return Promise.resolve()
     })
