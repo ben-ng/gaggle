@@ -305,7 +305,7 @@ t.test('leader election - fails when append entries is recieved from earlier ter
 })
 
 t.test('log replication - the leader can append entries', function (t) {
-  t.plan(5)
+  t.plan(6)
 
   createClusterWithLeader({clusterSize: 5}, function (err, cluster, leader, cleanup) {
     t.ifError(err, 'there should be no error')
@@ -314,6 +314,10 @@ t.test('log replication - the leader can append entries', function (t) {
 
     leader.once('committed', function () {
       t.ok('the committed event fired on the leader')
+    })
+
+    leader.once('appended', function () {
+      t.ok('the appended event fired on the leader')
     })
 
     leader.append('foobar')

@@ -15,6 +15,7 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Checking for uncommitted entries in previous terms](#checking-for-uncommitted-entries-in-previous-terms)
     - [Deconstructing an instance](#deconstructing-an-instance)
     - [Getting the state of the node](#getting-the-state-of-the-node)
+    - [Event: appended](#event-appended)
     - [Event: committed](#event-committed)
     - [Event: leaderElected](#event-leaderelected)
   - [Channels](#channels)
@@ -209,6 +210,18 @@ g.isLeader()
 ```
 
 Returns `true` if the current node is the leader state. Note that multiple nodes may return `true` at the same time because they can be leaders in different terms.
+
+#### Event: appended
+
+Emitted whenever an entry is appended to the node's log.
+
+```js
+g.on('appended', function (entry, index) {
+  // entry => {id: 'some-uuid', term: 1, data: {foo: bar}}
+  // index => 1
+})
+```
+
 
 #### Event: committed
 
