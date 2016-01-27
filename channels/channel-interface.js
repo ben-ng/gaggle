@@ -1,6 +1,7 @@
 var EventEmitter = require('events').EventEmitter
   , util = require('util')
   , Joi = require('joi')
+  , _ = require('lodash')
   , prettifyJoiError = require('../helpers/prettify-joi-error')
 
 /**
@@ -66,7 +67,7 @@ util.inherits(ChannelInterface, EventEmitter)
 */
 ChannelInterface.prototype._recieved = function _recieved (originNodeId, packet) {
   if (this.state.connected === false) {
-    throw new Error('_recieve was called although the channel is in the disconnected state')
+    throw new Error('_recieved was called although the channel is in the disconnected state')
   }
   else {
     if (this._lastRecievedMap[originNodeId] == null || this._lastRecievedMap[originNodeId] < packet.sequence) {
@@ -133,6 +134,10 @@ ChannelInterface.prototype.connect = function connect () {
 * quickly and cleanly exit.
 */
 ChannelInterface.prototype.disconnect = function disconnect () {
+  this._broadcast = _.noop
+  this._send = _.noop
+  this._recieved = _.noop
+
   if (typeof this._disconnect === 'function') {
     return this._disconnect()
   }

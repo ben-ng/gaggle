@@ -10,16 +10,16 @@ t.test('throws when stub methods are called', function (t) {
   }, 'throws when connect is called')
 
   t.throws(function () {
-    c.disconnect()
-  }, 'throws when disconnect is called')
-
-  t.throws(function () {
     c.broadcast()
   }, 'throws when broadcast is called')
 
   t.throws(function () {
     c.send()
   }, 'throws when send is called')
+
+  t.throws(function () {
+    c.disconnect()
+  }, 'throws when disconnect is called')
 
   t.end()
 })
