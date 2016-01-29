@@ -22,7 +22,11 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Event: leaderElected](#event-leaderelected)
   - [Channels](#channels)
     - [Redis](#redis)
+      - [Redis Channel Options](#redis-channel-options)
+    - [Redis Channel Example](#redis-channel-example)
     - [Memory](#memory)
+      - [Memory Channel Options](#memory-channel-options)
+    - [Memory Channel Example](#memory-channel-example)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -103,9 +107,11 @@ var gaggle = require('gaggle')
       id: uuid.v4()
     , clusterSize: 5
     , channel: {
-        name: 'foobar'
-        // ... additional Channel options specific to "foobar"
-        // see Channel documentation below
+        name: 'redis' // or "memory", etc ...
+
+        // ... additional keys are passed as options to the
+        // "redis" channel. see channel docs for available
+        // options.
       }
 
       /**
@@ -268,12 +274,21 @@ g.on('leaderElected', function () {
 
 Fast, but relies heavily on your Redis server.
 
+##### Redis Channel Options
+
+* *required* String `name` Set to 'redis' to use this channel
+* *required* String `channelName` What channel to pub/sub to
+* *optional* String `connectionString` The redis URL to connect to
+
+#### Redis Channel Example
+
 ```js
 gaggle({
   id: uuid.v4()
 , clusterSize: 5
 , channel: {
     name: 'redis'
+
     // required, the channel to pub/sub to
   , channelName: 'foobar'
     // optional, defaults to redis's defaults
@@ -284,7 +299,13 @@ gaggle({
 
 #### Memory
 
-No options, useful for testing.
+Useful for testing, only works in the same process.
+
+##### Memory Channel Options
+
+* *required* String `name` Set to 'memory' to use this channel
+
+#### Memory Channel Example
 
 ```js
 gaggle({
