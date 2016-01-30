@@ -54,7 +54,7 @@ RedisChannel.prototype._connect = function _connect () {
     }
     catch (e) {}
 
-    if (channel === redisChannel && (parsed.to == null || parsed.to === self.id)) {
+    if (channel === redisChannel && (parsed.to == null || parsed.to === self.id) && self.state.connected) {
       self._recieved(parsed.from, parsed.data)
     }
   })
