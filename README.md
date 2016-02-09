@@ -237,7 +237,7 @@ Returns the commit index, which is the index of the last committed log entry.
 
 #### Event: appended
 
-Emitted whenever an entry is appended to the node's log.
+Emitted by a leader whenever an entry is appended (but not committed) to its log.
 
 ```js
 g.on('appended', function (entry, index) {
@@ -245,7 +245,6 @@ g.on('appended', function (entry, index) {
   // index => 1
 })
 ```
-
 
 #### Event: committed
 
