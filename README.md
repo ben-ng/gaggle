@@ -280,7 +280,8 @@ var server = http.createServer(function (req, resp) {
       resp.writeHead(200)
       resp.end()
     })
-  , closeServer = serverEnhancer(server)
+
+var closeServer = serverEnhancer(server)
 
 server.listen(8000)
 
