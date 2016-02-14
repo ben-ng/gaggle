@@ -24,6 +24,9 @@
   ],
   "author": "Ben Ng <me@benng.me>",
   "license": "MIT",
+  "browser": {
+    "./channels/redis-channel": false
+  },
   "bugs": {
     "url": "https://github.com/ben-ng/gaggle/issues"
   },
