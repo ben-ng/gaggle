@@ -32,14 +32,14 @@ var t = require('tap')
                 resp.end()
               }
             , server = http.createServer(noop)
-            , socketIOteardown
+            , closeServer
 
-          socketIOteardown = serverEnhancer(server)
+          closeServer = serverEnhancer(server)
 
           server.listen(RANDOM_HIGH_PORT, function () {
             cb(function exposedTeardownCb (teardownCb) {
-              socketIOteardown()
-              server.close(teardownCb)
+              server.once('close', teardownCb)
+              closeServer()
             })
           })
         }

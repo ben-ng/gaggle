@@ -277,15 +277,15 @@ A pretty fast channel that works on either the server or the browser. You need t
 var serverEnhancer = require('gaggle').enhanceServerForSocketIOChannel
 
 var server = http.createServer(function (req, resp) {
-  resp.writeHead(200)
-  resp.end()
-})
-
-// The enhancer returns a cleanup function
-// which you can simply bind to "close"
-server.on('close', serverEnhancer(server))
+      resp.writeHead(200)
+      resp.end()
+    })
+  , closeServer = serverEnhancer(server)
 
 server.listen(8000)
+
+// When you need to cleanly shut down `server`:
+closeServer()
 ```
 
 ##### Socket.io Channel Options
