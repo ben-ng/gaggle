@@ -275,7 +275,7 @@ g.on('leaderElected', function () {
 
 A pretty fast channel that works on either the server or the browser. You need to host your own Socket.io server. Gaggle exports a helper function to assist with this.
 
-```
+```js
 var serverEnhancer = require('gaggle').enhanceServerForSocketIOChannel
 
 var server = http.createServer(function (req, resp) {
