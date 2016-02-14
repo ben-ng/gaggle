@@ -21,6 +21,8 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Event: committed](#event-committed)
     - [Event: leaderElected](#event-leaderelected)
   - [Channels](#channels)
+    - [Socket.io](#socketio)
+      - [Socket.io Channel Options](#socketio-channel-options)
     - [Redis](#redis)
       - [Redis Channel Options](#redis-channel-options)
     - [Redis Channel Example](#redis-channel-example)
