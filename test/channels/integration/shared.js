@@ -1,8 +1,12 @@
 var t = require('tap')
   , uuid = require('uuid')
   , _ = require('lodash')
+  , http = require('http')
+  , serverEnhancer = require('../../../lib/socket-io-server-enhancer')
+  , RANDOM_HIGH_PORT = _.random(9000, 65535)
   , InMemoryChannel = require('../../../channels/in-memory-channel')
   , RedisChannel = require('../../../channels/redis-channel')
+  , SocketIOChannel = require('../../../channels/socket-io-channel')
   , channelsToTest = {
       InMemory: {
         create: function createInMemoryChannel () {
@@ -21,6 +25,35 @@ var t = require('tap')
         }
       , cls: RedisChannel
       }
+    , SocketIO: {
+        setup: function setupSocketIOServer (cb) {
+          var noop = function noop (req, resp) {
+                resp.writeHead(200)
+                resp.end()
+              }
+            , server = http.createServer(noop)
+            , socketIOteardown
+
+          socketIOteardown = serverEnhancer(server)
+
+          server.listen(RANDOM_HIGH_PORT, function () {
+            cb(function exposedTeardownCb (teardownCb) {
+              socketIOteardown()
+              server.close(teardownCb)
+            })
+          })
+        }
+      , create: function createSocketIOChannel () {
+          return new SocketIOChannel({
+            id: uuid.v4()
+          , channelOptions: {
+              host: 'http://127.0.0.1:' + RANDOM_HIGH_PORT
+            , channel: 'gaggle'
+            }
+          })
+        }
+      , cls: RedisChannel
+      }
     }
 
 // Start outer EACH
@@ -28,9 +61,16 @@ var t = require('tap')
 _.each(channelsToTest, function (channelDetails, channelName) {
 
 var createChannel = channelDetails.create
+  , customTestSetup = channelDetails.setup
   , Channel = channelDetails.cls
 
-function openChannels (t, requestedChannelCount, cb) {
+if (customTestSetup == null) {
+  customTestSetup = function noopSetup (cb) {
+    cb(function noopCleanup (_cb) {_cb()})
+  }
+}
+
+function setupTest (t, requestedChannelCount, cb) {
   var channels = []
     , i
     , tempChannel
@@ -40,8 +80,11 @@ function openChannels (t, requestedChannelCount, cb) {
     , cleanup
     , cleanedUp = false
     , executionsCounter = 0
+    , customTestCleanup
 
   cleanup = function () {
+    var onDisconnect
+
     if (cleanedUp) {
       throw new Error('Cannot clean up the same t.test twice')
     }
@@ -49,11 +92,16 @@ function openChannels (t, requestedChannelCount, cb) {
       cleanedUp = true
     }
 
-    var onDisconnect = function (whichChannel) {
+    if (requestedChannelCount === 0) {
+      customTestCleanup(t.end)
+      return
+    }
+
+    onDisconnect = function (whichChannel) {
       connectedCounter -= 1
 
       if (connectedCounter === 0) {
-        t.end()
+        customTestCleanup(t.end)
       }
     }
 
@@ -86,14 +134,23 @@ function openChannels (t, requestedChannelCount, cb) {
     }
   }
 
-  for (i=0; i<requestedChannelCount; ++i) {
-    tempChannel = createChannel()
+  customTestSetup(function (teardownFunc) {
+    customTestCleanup = teardownFunc
 
-    tempChannel.once('connected', onConnect.bind(this, tempChannel))
-    tempChannel.connect()
+    if (requestedChannelCount === 0) {
+      cb(cleanup)
+      return
+    }
 
-    channels.push(tempChannel)
-  }
+    for (i=0; i<requestedChannelCount; ++i) {
+      tempChannel = createChannel()
+
+      tempChannel.once('connected', onConnect.bind(this, tempChannel))
+      tempChannel.connect()
+
+      channels.push(tempChannel)
+    }
+  })
 }
 
 t.test(channelName + ' channel integration - throws when options are invalid', function (t) {
@@ -116,23 +173,26 @@ t.test(channelName + ' channel integration - throws when options are invalid', f
 
 t.test(channelName + ' channel integration - should connect after instantiation and disconnect when requested', function (t) {
 
-  var c = createChannel()
+  setupTest(t, 0, function (cleanup) {
+    var c = createChannel()
 
-  c.once('disconnected', function () {
-    t.pass('disconnected')
-    t.end()
+    c.once('disconnected', function () {
+      t.pass('disconnected')
+
+      cleanup(t.end)
+    })
+
+    c.once('connected', function () {
+      t.pass('connected')
+      c.disconnect()
+    })
+
+    c.connect()
   })
-
-  c.once('connected', function () {
-    t.pass('connected')
-    c.disconnect()
-  })
-
-  c.connect()
 })
 
 t.test(channelName + ' channel integration - should send a message to a specified node', function (t) {
-  openChannels(t, 2, function (a, b, cleanup) {
+  setupTest(t, 2, function (a, b, cleanup) {
 
     b.once('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')
@@ -146,7 +206,7 @@ t.test(channelName + ' channel integration - should send a message to a specifie
 })
 
 t.test(channelName + ' channel integration - should send a message to itself', function (t) {
-  openChannels(t, 1, function (a, cleanup) {
+  setupTest(t, 1, function (a, cleanup) {
 
     a.once('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')
@@ -160,7 +220,7 @@ t.test(channelName + ' channel integration - should send a message to itself', f
 })
 
 t.test(channelName + ' channel integration - should be FIFO', function (t) {
-  openChannels(t, 2, function (a, b, cleanup) {
+  setupTest(t, 2, function (a, b, cleanup) {
 
     var previous = -1
       , sequenceLength = 50
@@ -186,7 +246,7 @@ t.test(channelName + ' channel integration - should be FIFO', function (t) {
 })
 
 t.test(channelName + ' channel integration - t.test helper works', function (t) {
-  openChannels(t, 1, function (a, cleanup) {
+  setupTest(t, 1, function (a, cleanup) {
     t.pass('the helper opens the channels')
     cleanup()
   })
@@ -195,7 +255,7 @@ t.test(channelName + ' channel integration - t.test helper works', function (t) 
 t.test(channelName + ' channel integration - t.test helper throws if you try to clean up the t.test twice', function (t) {
   var fakeTest = {end: function noop () {}}
 
-  openChannels(fakeTest, 1, function (a, cleanup) {
+  setupTest(fakeTest, 1, function (a, cleanup) {
     cleanup()
 
     t.throws(function () {
@@ -207,7 +267,7 @@ t.test(channelName + ' channel integration - t.test helper throws if you try to 
 })
 
 t.test(channelName + ' channel integration - should broadcast a message to all nodes', function (t) {
-  openChannels(t, 3, function (a, b, c, cleanup) {
+  setupTest(t, 3, function (a, b, c, cleanup) {
 
     a.once('recieved', function (originNodeId, data) {
       t.strictEquals(originNodeId, a.id, 'message origin should be node A')

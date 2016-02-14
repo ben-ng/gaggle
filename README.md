@@ -269,9 +269,34 @@ g.on('leaderElected', function () {
 
 ### Channels
 
+#### Socket.io
+
+A pretty fast channel that works on either the server or the browser. You need to host your own Socket.io server. Gaggle exports a helper function to assist with this.
+
+```
+var serverEnhancer = require('gaggle').enhanceServerForSocketIOChannel
+
+var server = http.createServer(function (req, resp) {
+  resp.writeHead(200)
+  resp.end()
+})
+
+// The enhancer returns a cleanup function
+// which you can simply bind to "close"
+server.on('close', serverEnhancer(server))
+
+server.listen(8000)
+```
+
+##### Socket.io Channel Options
+
+* *required* String `name` Set to 'socket.io' to use this channel
+* *required* String `host` Where your socket.io server is running, e.g. `http://localhost:9000`
+* *required* String `channel` What channel to use
+
 #### Redis
 
-Fast, but relies heavily on your Redis server.
+Fast, but relies heavily on your Redis server. Only works server-side
 
 ##### Redis Channel Options
 
