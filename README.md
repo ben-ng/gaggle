@@ -299,7 +299,7 @@ closeServer()
 
 #### Redis
 
-Fast, but relies heavily on your Redis server. Only works server-side
+Fast, but relies heavily on your Redis server. Only works server-side.
 
 ##### Redis Channel Options
 
