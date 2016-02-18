@@ -232,7 +232,7 @@ Returns the log, which is an array of entries.
 ### Getting the commit index
 
 ```txt
-g.getCommtiIndex()
+g.getCommitIndex()
 ```
 
 Returns the commit index, which is the index of the last committed log entry.
