@@ -125,7 +125,7 @@ var gaggle = require('gaggle')
         foo: function foo (a, b, c, d, cb) {
           // "this" inside here refers to the leader Gaggle instance
           // so you can do things like this...
-          if (this.this.hasUncommittedEntriesFromPreviousTerms()) {
+          if (this.hasUncommittedEntriesFromPreviousTerms()) {
             this.append('noop')
 
             cb(new Error('I am not ready yet, try again in a few seconds'))
@@ -143,17 +143,17 @@ var gaggle = require('gaggle')
       }
 
       // How often should the leader send heartbeats?
-    , heartbeatInterval: Joi.number().min(0).default(50)
+    , heartbeatInterval: 50
 
       // Should the leader send a heartbeat if it would speed
       // up the commit of a message?
-    , accelerateHeartbeats: Joi.boolean().default(false)
+    , accelerateHeartbeats: false
     })
 ```
 
 #### Appending Messages
 
-```txt
+```js
 g.append(Mixed data, [Number timeout], [function(Error) callback])
 ```
 
@@ -170,7 +170,7 @@ g.append(data, timeout).then()
 
 #### Performing RPC calls on the leader
 
-```txt
+```js
 g.dispatchOnLeader(String functionName, Array args, [Number timeout], [function(Error, [Mixed arg1, Mixed arg2, ...]) callback])
 ```
 
@@ -193,7 +193,7 @@ g.dispatchOnLeader('foo', ['bar', 'baz'], 5000)
 
 #### Checking for uncommitted entries in previous terms
 
-```txt
+```js
 g.hasUncommittedEntriesInPreviousTerms()
 ```
 
@@ -201,7 +201,7 @@ You'll need to use this in your RPC functions in order to safely handle leadersh
 
 #### Deconstructing an instance
 
-```txt
+```js
 g.close([function(Error) callback])
 ```
 
@@ -215,7 +215,7 @@ g.close().then()
 
 #### Getting the state of the node
 
-```txt
+```js
 g.isLeader()
 ```
 
@@ -223,7 +223,7 @@ Returns `true` if the current node is the leader state. Note that multiple nodes
 
 ### Getting the log
 
-```txt
+```js
 g.getLog()
 ```
 
@@ -231,7 +231,7 @@ Returns the log, which is an array of entries.
 
 ### Getting the commit index
 
-```txt
+```js
 g.getCommitIndex()
 ```
 
