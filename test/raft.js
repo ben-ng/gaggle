@@ -593,24 +593,23 @@ t.test('dispatch - waits for leader election before dispatching', function (t) {
   var cluster = createCluster({
         clusterSize: 5
       , rpc: {
-          ping: function ping (f, b, cb) {
+          ping: function ping (f, b) {
             if (f === 'foo') {
-              cb(null, 'pong')
+              return 'pong'
             }
             else {
-              cb(new Error('baz'))
+              return new Error('baz')
             }
           }
         }
       })
     , node = cluster[0]
 
-  t.plan(3)
+  t.plan(2)
 
   node.dispatchOnLeader('ping', ['foo', 'bar'])
   .then(function (res) {
-    t.equals(res.length, 1, 'should respond with one return value')
-    t.equals(res[0], 'pong', 'the return value should be "pong"')
+    t.equals(res, 'pong', 'the return value should be "pong"')
 
     return Promise.resolve()
   })
@@ -624,17 +623,17 @@ t.test('dispatch - waits for leader election before dispatching', function (t) {
 })
 
 t.test('dispatch - the leader can dispatch rpc calls', function (t) {
-  t.plan(5)
+  t.plan(4)
 
   createClusterWithLeader({
     clusterSize: 5
   , rpc: {
-      ping: function ping (f, b, cb) {
+      ping: function ping (f, b) {
         if (f === 'foo') {
-          cb(null, 'pong')
+          return 'pong'
         }
         else {
-          cb(new Error('baz'))
+          return new Error('baz')
         }
       }
     }
@@ -645,8 +644,7 @@ t.test('dispatch - the leader can dispatch rpc calls', function (t) {
 
     leader.dispatchOnLeader('ping', ['foo', 'bar'])
     .then(function (res) {
-      t.equals(res.length, 1, 'should respond with one return value')
-      t.equals(res[0], 'pong', 'the return value should be "pong"')
+      t.equals(res, 'pong', 'the return value should be "pong"')
 
       return Promise.resolve()
     })
@@ -659,17 +657,17 @@ t.test('dispatch - the leader can dispatch rpc calls', function (t) {
 })
 
 t.test('dispatch - a follower can dispatch rpc calls', function (t) {
-  t.plan(6)
+  t.plan(5)
 
   createClusterWithLeader({
     clusterSize: 5
   , rpc: {
-      ping: function ping (f, b, cb) {
+      ping: function ping (f, b) {
         if (f === 'foo') {
-          cb(null, 'pong')
+          return 'pong'
         }
         else {
-          cb(new Error('baz'))
+          return new Error('baz')
         }
       }
     }
@@ -687,7 +685,6 @@ t.test('dispatch - a follower can dispatch rpc calls', function (t) {
     // Use the callback API to cover those branches
     notTheLeader.dispatchOnLeader('ping', ['foo', 'bar'], function (err, ret) {
       t.ifError(err, 'there should be no error')
-      t.equals(arguments.length, 2, 'should respond with one return value')
       t.equals(ret, 'pong', 'the return value should be "pong"')
 
       return cleanup().then(function () {
@@ -703,12 +700,12 @@ t.test('dispatch - errors from rpc calls are properly handled', function (t) {
   createClusterWithLeader({
     clusterSize: 5
   , rpc: {
-      ping: function ping (f, b, cb) {
+      ping: function ping (f, b) {
         if (f === 'foo') {
-          cb(null, 'pong')
+          return 'pong'
         }
         else {
-          cb(new Error('baz'))
+          return new Error('baz')
         }
       }
     }
@@ -747,7 +744,7 @@ t.test('dispatch - calling a nonexistent method from a leader fails', function (
     t.ok(leader, 'a leader was elected, and all nodes are in consensus')
 
     // Use the callback API to cover those branches
-    leader.dispatchOnLeader('ping', ['fee', 'fi'], function (err, ret) {
+    leader.dispatchOnLeader('ping', ['fee', 'fi'], function (err) {
       t.ok(err, 'there should be an error')
       t.ok(err instanceof Error, 'err should be an Error')
       t.equals(err.toString(), 'Error: The RPC method ping does not exist', 'the error message should be correct')
@@ -776,7 +773,7 @@ t.test('dispatch - calling a nonexistent method from a follower fails', function
     })
 
     // Use the callback API to cover those branches
-    notTheLeader.dispatchOnLeader('ping', ['fee', 'fi'], function (err, ret) {
+    notTheLeader.dispatchOnLeader('ping', ['fee', 'fi'], function (err) {
       t.ok(err, 'there should be an error')
       t.ok(err instanceof Error, 'err should be an Error')
       t.equals(err.toString(), 'Error: The RPC method ping does not exist', 'the error message should be correct')
@@ -796,10 +793,10 @@ t.test('dispatch - rpc calls can time out', function (t) {
   , rpc: {
       ping: function ping (f, b, cb) {
         if (f === 'foo') {
-          cb(null, 'pong')
+          return 'pong'
         }
         else {
-          cb(new Error('baz'))
+          return new Error('baz')
         }
       }
     }
