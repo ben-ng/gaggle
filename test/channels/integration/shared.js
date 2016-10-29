@@ -49,6 +49,7 @@ var t = require('tap')
           , channelOptions: {
               host: 'http://127.0.0.1:' + RANDOM_HIGH_PORT
             , channel: 'gaggle'
+            , clusterSize: 1
             }
           })
         }

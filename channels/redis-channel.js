@@ -14,6 +14,7 @@ function RedisChannel (opts) {
         channelOptions: Joi.object().keys({
           connectionString: Joi.string()
         , channelName: Joi.string()
+        , clusterSize: Joi.number()
         })
       , logFunction: Joi.func()
       , id: Joi.string()

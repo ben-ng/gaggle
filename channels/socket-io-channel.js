@@ -5,19 +5,21 @@ var ChannelInterface = require('./channel-interface')
   , util = require('util')
   , _ = require('lodash')
 
-/**
-* A simple channel that uses Redis's pub/sub
-*/
-
 function SocketIOChannel (opts) {
   var validatedOptions = Joi.validate(opts || {}, Joi.object().keys({
         channelOptions: Joi.object().keys({
           host: Joi.string()
         , channel: Joi.string()
+        , clusterSize: Joi.number()
         })
       , logFunction: Joi.func()
       , id: Joi.string()
-      }).requiredKeys('channelOptions', 'channelOptions.host', 'channelOptions.channel'), {
+      }).requiredKeys(
+        'channelOptions'
+      , 'channelOptions.host'
+      , 'channelOptions.channel'
+      , 'channelOptions.clusterSize'
+      ), {
         convert: false
       })
 
@@ -29,6 +31,8 @@ function SocketIOChannel (opts) {
 
   this._host = _.get(validatedOptions, 'value.channelOptions.host')
   this._channel = _.get(validatedOptions, 'value.channelOptions.channel')
+  this._clusterSize = _.get(validatedOptions, 'value.channelOptions.clusterSize')
+  this._handleMsg = _.bind(this._handleMsg, this)
 }
 
 util.inherits(SocketIOChannel, ChannelInterface)
@@ -38,6 +42,21 @@ SocketIOChannel.prototype._connect = function _connect () {
     , client = SocketIOClient(this._host)
     , onPossibilityOfServerLosingChannelInformation
 
+  /* istanbul ignore if: only happens in browsers, which we don't test in */
+  if (typeof window != 'undefined') {
+    // A shim, because we're not using browserify
+    require('socket.io-p2p/socketiop2p.min.js')
+
+    // Webpack doesn't find "foo" when we do new require('foo')()
+    var SocketIOP2P = require('socket.io-p2p')
+    client = new SocketIOP2P(client, {
+        autoUpgrade: true
+      , peerOpts: {
+          numClients: this._clusterSize
+        }
+      })
+  }
+
   onPossibilityOfServerLosingChannelInformation = function declareChannel () {
     client.emit('declareChannel', self._channel)
 
@@ -46,16 +65,16 @@ SocketIOChannel.prototype._connect = function _connect () {
     }
   }
 
-  client.on('msg', function (msg) {
-    if ((msg.to == null || msg.to === self.id) && self.state.connected) {
-
-      self._recieved(msg.from, msg.data)
-    }
-  })
+  client.on('msg', this._handleMsg)
 
   client.on('reconnect', onPossibilityOfServerLosingChannelInformation)
   client.on('unknownChannel', onPossibilityOfServerLosingChannelInformation)
   client.once('connect', onPossibilityOfServerLosingChannelInformation)
+
+  /* istanbul ignore if: only happens in browsers with WebRTC support */
+  client.on('upgrade', function () {
+    client.usePeerConnection = true
+  })
 
   this._client = client
 }
@@ -73,18 +92,32 @@ SocketIOChannel.prototype._disconnect = function _disconnect () {
 }
 
 SocketIOChannel.prototype._broadcast = function _broadcast (data) {
-  this._client.emit('msg', {
+  var msg = {
     from: this.id
   , data: data
-  })
+  }
+  this._client.emit('msg', msg)
+  this._handleMsg(msg)
 }
 
 SocketIOChannel.prototype._send = function _send (nodeId, data) {
-  this._client.emit('msg', {
+  var msg = {
     from: this.id
   , to: nodeId
   , data: data
-  })
+  }
+  this._client.emit('msg', msg)
+
+  // Needed to handle an inconsistency where the WebRTC emit
+  // does not send the message to ourselves, but the regular
+  // socket.io emit does
+  this._handleMsg(msg)
+}
+
+SocketIOChannel.prototype._handleMsg = function _handleMsg (msg) {
+  if ((msg.to == null || msg.to === this.id) && this.state.connected) {
+    this._recieved(msg.from, msg.data)
+  }
 }
 
 module.exports = SocketIOChannel

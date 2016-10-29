@@ -751,7 +751,7 @@ t.test('dispatch - using the old async RPC API fails', function (t) {
     leader.dispatchOnLeader('ping', ['fee', 'fi'], function (err) {
       t.ok(err, 'there should be an error')
       t.ok(err instanceof Error, 'err should be an Error')
-      t.ok(/As of version 3, RPC calls are synchronous/.test(err.toString()), 'the error message should be correct')
+      t.ok(/As of version 3, RPC methods are synchronous/.test(err.toString()), 'the error message should be correct')
 
       return cleanup().then(function () {
         t.pass('cleanly closed the strategy')

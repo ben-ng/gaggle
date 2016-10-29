@@ -12,8 +12,10 @@ t.test('fails when required Gaggle options are missing', function (t) {
     , channel: {
         'name': 'memory'
       }
+    , clusterSize: 1
+    , heartbeatInterval: 'should be a number'
     })
-  }, /Invalid options: "clusterSize" is required/, 'throws the expected error')
+  }, /Invalid options: "heartbeatInterval"/, 'throws the expected error')
 
   t.end()
 })
@@ -22,6 +24,7 @@ t.test('fails when required factory options are missing', function (t) {
   t.throws(function () {
     gaggle({
       id: 'i am required'
+    , clusterSize: 1
     })
   }, /Invalid options: "channel" is required/, 'throws the expected error')
 

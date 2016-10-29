@@ -47,6 +47,8 @@
     "redis": "^2.4.2",
     "socket.io": "^1.4.5",
     "socket.io-client": "^1.4.5",
+    "socket.io-p2p": "^2.2.0",
+    "socket.io-p2p-server": "^1.2.0",
     "uuid": "^2.0.1"
   }
 }
