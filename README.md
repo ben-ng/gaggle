@@ -15,8 +15,8 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Checking for uncommitted entries in previous terms](#checking-for-uncommitted-entries-in-previous-terms)
     - [Deconstructing an instance](#deconstructing-an-instance)
     - [Getting the state of the node](#getting-the-state-of-the-node)
-  - [Getting the log](#getting-the-log)
-  - [Getting the commit index](#getting-the-commit-index)
+    - [Getting the log](#getting-the-log)
+    - [Getting the commit index](#getting-the-commit-index)
     - [Event: appended](#event-appended)
     - [Event: committed](#event-committed)
     - [Event: leaderElected](#event-leaderelected)
@@ -29,6 +29,7 @@ Gaggle is a [Raft](http://raft.github.io) implementation that focuses on ease of
     - [Memory](#memory)
       - [Memory Channel Options](#memory-channel-options)
     - [Memory Channel Example](#memory-channel-example)
+- [Running Tests](#running-tests)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -221,7 +222,7 @@ g.isLeader()
 
 Returns `true` if the current node is the leader state. Note that multiple nodes may return `true` at the same time because they can be leaders in different terms.
 
-### Getting the log
+#### Getting the log
 
 ```js
 g.getLog()
@@ -229,7 +230,7 @@ g.getLog()
 
 Returns the log, which is an array of entries.
 
-### Getting the commit index
+#### Getting the commit index
 
 ```js
 g.getCommitIndex()
