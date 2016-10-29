@@ -223,7 +223,7 @@ t.test(channelName + ' channel integration - should be FIFO', function (t) {
   setupTest(t, 2, function (a, b, cleanup) {
 
     var previous = -1
-      , sequenceLength = 50
+      , sequenceLength = 5
       , finish = _.after(sequenceLength, function () {
           b.removeAllListeners()
           cleanup()
