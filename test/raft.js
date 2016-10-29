@@ -733,6 +733,33 @@ t.test('dispatch - errors from rpc calls are properly handled', function (t) {
   })
 })
 
+t.test('dispatch - using the old async RPC API fails', function (t) {
+  t.plan(6)
+
+  createClusterWithLeader({
+    clusterSize: 5
+  , rpc: {
+      ping: function ping (f, b, cb) {
+        cb()
+      }
+    }
+  }, function (err, cluster, leader, cleanup) {
+    t.ifError(err, 'there should be no error')
+
+    t.ok(leader, 'a leader was elected, and all nodes are in consensus')
+
+    leader.dispatchOnLeader('ping', ['fee', 'fi'], function (err) {
+      t.ok(err, 'there should be an error')
+      t.ok(err instanceof Error, 'err should be an Error')
+      t.ok(/As of version 3, RPC calls are synchronous/.test(err.toString()), 'the error message should be correct')
+
+      return cleanup().then(function () {
+        t.pass('cleanly closed the strategy')
+      })
+    })
+  })
+})
+
 t.test('dispatch - calling a nonexistent method from a leader fails', function (t) {
   t.plan(6)
 
@@ -791,7 +818,7 @@ t.test('dispatch - rpc calls can time out', function (t) {
   createClusterWithLeader({
     clusterSize: 5
   , rpc: {
-      ping: function ping (f, b, cb) {
+      ping: function ping (f, b) {
         if (f === 'foo') {
           return 'pong'
         }

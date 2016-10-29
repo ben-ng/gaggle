@@ -122,16 +122,16 @@ var gaggle = require('gaggle')
 
       // Can be called through dispatchOnLeader()
     , rpc: {
-        foo: function foo (a, b, c, d, cb) {
+        foo: function foo (a, b, c, d) {
           // "this" inside here refers to the leader Gaggle instance
           // so you can do things like this...
           if (this.hasUncommittedEntriesFromPreviousTerms()) {
             this.append('noop')
 
-            cb(new Error('I am not ready yet, try again in a few seconds'))
+            return new Error('I am not ready yet, try again in a few seconds')
           }
           else {
-            cb(null, ret_a, ret_b, ret_c)
+            return 'foo'
           }
         }
       }
@@ -171,7 +171,7 @@ g.append(data, timeout).then()
 #### Performing RPC calls on the leader
 
 ```js
-g.dispatchOnLeader(String functionName, Array args, [Number timeout], [function(Error, [Mixed arg1, Mixed arg2, ...]) callback])
+g.dispatchOnLeader(String functionName, Array args, [Number timeout], [function(Error, Mixed result) callback])
 ```
 
 If you're building something on top of Gaggle, you'll probably have to use the leader as a coordinator. This is a helper function that simplifies that. While the `timeout` period is optional, omitting it means that the operation may never complete. You should *probably* always specify a timeout to handle lost messages and leader crashes.
@@ -179,11 +179,11 @@ If you're building something on top of Gaggle, you'll probably have to use the l
 ```js
 // Calls the function at key "foo" on the "rpc" object that was passed in as
 // an option to the Gaggle constructor with the arguments "bar" and "baz".
-g.dispatchOnLeader('foo', ['bar', 'baz'], 5000, function (err, ret_a, ret_b) {
+g.dispatchOnLeader('foo', ['bar', 'baz'], 5000, function (err, result) {
 })
 
 g.dispatchOnLeader('foo', ['bar', 'baz'], 5000)
-.spread(function (ret_a, ret_b) {
+.then(function (result) {
 
 })
 .catch(function (err) {
